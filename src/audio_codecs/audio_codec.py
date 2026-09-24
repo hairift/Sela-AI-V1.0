@@ -80,6 +80,9 @@ class AudioCodec:
         # 输出监听器：接收最终播放 PCM（TTS+音乐混音），供界面 lipsync 使用
         self._output_listeners: list[Callable[[np.ndarray], None]] = []
         self._listeners_lock = threading.Lock()
+        # Encoder Opus tidak aman dipakai bersamaan dari beberapa thread.
+        # Dipakai oleh thread mikrofon dan jalur kirim PCM (teks panjang).
+        self._encoder_lock = threading.Lock()
 
         # 设备配置（初始化后填充）
         self.device_config: DeviceConfig | None = None
@@ -173,9 +176,10 @@ class AudioCodec:
             # 2. Opus 编码（float32 输入）
             if self._encoded_callback:
                 try:
-                    opus_data = self.opus_codec.encode(
-                        audio_converted, AudioConfig.INPUT_FRAME_SIZE
-                    )
+                    with self._encoder_lock:
+                        opus_data = self.opus_codec.encode(
+                            audio_converted, AudioConfig.INPUT_FRAME_SIZE
+                        )
                     self._encoded_callback(opus_data)
                 except Exception as e:
                     logger.warning(f"编码失败: {e}", exc_info=True)
@@ -457,6 +461,46 @@ class AudioCodec:
             if self._is_closing or self._music_fifo.size <= target:
                 break
             await asyncio.sleep(0.02)
+
+    async def kirim_pcm_ke_server(self, pcm_float32: np.ndarray) -> int:
+        """Encode PCM 16 kHz mono lalu kirim ke server AI sebagai audio ucapan.
+
+        Dipakai ketika pengguna mengirim teks yang terlalu panjang untuk jalur
+        ``listen/detect`` server xiaozhi ("Detect is only for wake words").
+        Teks disintesis menjadi suara lebih dulu, lalu dikirim lewat jalur suara
+        biasa — sama seperti pengguna berbicara ke mikrofon — sehingga panjang
+        pertanyaan tidak lagi dibatasi.
+
+        Args:
+            pcm_float32: Sampel mono float32 pada ``INPUT_SAMPLE_RATE``.
+
+        Returns:
+            Jumlah frame Opus yang terkirim.
+        """
+        if self._encoded_callback is None:
+            raise RuntimeError("Callback audio belum dipasang; audio belum siap.")
+
+        data = np.asarray(pcm_float32, dtype=np.float32).reshape(-1)
+        ukuran = AudioConfig.INPUT_FRAME_SIZE
+        terkirim = 0
+        for awal in range(0, len(data) - ukuran + 1, ukuran):
+            potong = data[awal : awal + ukuran]
+            try:
+                # Encoder Opus TIDAK aman dipakai bersamaan dari dua thread.
+                # Tanpa kunci, thread mikrofon dan jalur ini bisa mengodekan
+                # pada saat yang sama dan pustaka Opus native langsung
+                # membatalkan proses:
+                #   Fatal error in silk/resampler.c: assertion failed
+                with self._encoder_lock:
+                    opus_data = self.opus_codec.encode(potong, ukuran)
+            except Exception as e:
+                logger.warning(f"Gagal mengodekan PCM untuk server: {e}")
+                continue
+            self._encoded_callback(opus_data)
+            terkirim += 1
+            # Beri napas agar antrean pengiriman tidak menumpuk.
+            await asyncio.sleep(0)
+        return terkirim
 
     async def clear_audio_queue(self):
         """清空 TTS 播放队列（打断/中止时用；音乐队列不受影响）."""

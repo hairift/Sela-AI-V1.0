@@ -90,6 +90,8 @@ class SelaWebServer:
         app.router.add_get("/api/status", self._status_handler)
         app.router.add_get("/api/config", self._config_get_handler)
         app.router.add_post("/api/config", self._config_post_handler)
+        app.router.add_post("/api/admin/verifikasi", self._admin_verifikasi_handler)
+        app.router.add_get("/api/log", self._log_handler)
         app.router.add_get("/api/devices", self._devices_handler)
         app.router.add_get("/", self._index_handler)
         # Aset statis (JS/CSS/model 3D).
@@ -211,6 +213,80 @@ class SelaWebServer:
         except Exception as e:
             logger.warning(f"SelaWebServer: gagal membaca config: {e}")
             return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    # Kata sandi admin untuk membuka halaman pengaturan. Nilainya sengaja
+    # TIDAK ditanam di kode antarmuka (JavaScript bisa dibaca siapa pun),
+    # melainkan diperiksa di sini.
+    _SANDI_ADMIN = "cirebon250904"
+
+    async def _admin_verifikasi_handler(self, request: web.Request) -> web.StreamResponse:
+        """Periksa kata sandi admin untuk membuka pengaturan."""
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response(
+                {"ok": False, "error": "Permintaan tidak valid"}, status=400
+            )
+        sandi = str((payload or {}).get("sandi") or "")
+        if sandi == self._SANDI_ADMIN:
+            return web.json_response({"ok": True})
+        logger.info("SelaWebServer: percobaan buka pengaturan dengan sandi salah")
+        return web.json_response(
+            {"ok": False, "error": "Kata sandi salah. Coba lagi."}, status=403
+        )
+
+    async def _log_handler(self, request: web.Request) -> web.StreamResponse:
+        """Kembalikan sejumlah baris terakhir log aplikasi.
+
+        Dipakai halaman pengaturan untuk menampilkan log waktu nyata, supaya
+        pengguna bisa melihat sendiri penyebab masalah tanpa membuka berkas
+        log secara manual.
+        """
+        try:
+            jumlah = int(request.query.get("baris", "200"))
+        except Exception:
+            jumlah = 200
+        jumlah = max(20, min(1000, jumlah))
+
+        jalur = None
+        try:
+            from src.utils.resource_finder import get_user_data_dir
+
+            kandidat = get_user_data_dir() / "logs" / "app.log"
+            if kandidat.is_file():
+                jalur = kandidat
+        except Exception:
+            jalur = None
+
+        if jalur is None:
+            # Cadangan: lokasi standar aplikasi di Windows.
+            import pathlib as _pl
+
+            kandidat = _pl.Path.home() / "AppData/Local/sela-ai/sela-ai/logs/app.log"
+            jalur = kandidat if kandidat.is_file() else None
+
+        if jalur is None:
+            return web.json_response(
+                {"ok": False, "error": "Berkas log tidak ditemukan.", "lines": []}
+            )
+
+        try:
+            import collections
+
+            with open(jalur, "r", encoding="utf-8", errors="replace") as f:
+                baris = list(collections.deque(f, maxlen=jumlah))
+            return web.json_response(
+                {
+                    "ok": True,
+                    "path": str(jalur),
+                    "lines": [b.rstrip("\n") for b in baris],
+                }
+            )
+        except Exception as e:
+            logger.warning(f"SelaWebServer: gagal membaca log: {e}")
+            return web.json_response(
+                {"ok": False, "error": str(e), "lines": []}, status=500
+            )
 
     async def _config_post_handler(self, request: web.Request) -> web.StreamResponse:
         try:

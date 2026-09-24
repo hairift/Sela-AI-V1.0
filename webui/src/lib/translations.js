@@ -101,6 +101,26 @@ export const t = {
     musicQuality: 'Kualitas Audio',
     restartNote:
       'Sebagian perubahan (kata bangun, perangkat audio) berlaku setelah aplikasi dijalankan ulang.',
+    // Gerbang admin untuk halaman pengaturan
+    adminTitle: 'Pengaturan Terkunci',
+    adminDesc:
+      'Halaman ini mengubah perilaku mesin AI. Masukkan kata sandi admin untuk melanjutkan.',
+    adminPlaceholder: 'Kata sandi admin',
+    adminUnlock: 'Buka Pengaturan',
+    adminChecking: 'Memeriksa...',
+    adminWrong: 'Kata sandi salah. Coba lagi.',
+    adminUnreachable: 'Tidak bisa menghubungi mesin AI. Pastikan SELA berjalan.',
+    adminLock: 'Kunci lagi',
+    // Catatan: nilai sebenarnya ada di sisi mesin AI, bukan di berkas ini.
+    adminPasswordNote: 'Kata sandi diperiksa oleh mesin AI, bukan disimpan di antarmuka.',
+
+    // Log waktu nyata
+    logTitle: 'Log Mesin AI',
+    logDesc: 'Catatan terbaru dari mesin AI, berguna saat ada masalah.',
+    logRefresh: 'Muat ulang',
+    logEmpty: 'Belum ada catatan.',
+    logLoading: 'Memuat log...',
+
     autoConversation: 'Percakapan Otomatis',
     autoConversationDesc: 'Mendengarkan dan menjawab tanpa menekan tombol.',
     voiceReply: 'Balasan Suara',
@@ -136,12 +156,22 @@ export const t = {
     shortcutEsc: 'Tutup menu atau kembali',
     shortcutSend: 'Kirim pesan teks',
 
-    // Pertanyaan populer
+    // Pertanyaan populer.
+    //
+    // Sengaja dibuat PENDEK (di bawah ambang jalur suara). Server xiaozhi
+    // menolak teks panjang pada jalur listen/detect dengan
+    // "Detect is only for wake words, do not send long texts". Pertanyaan
+    // pendek dikirim sebagai teks sehingga pertanyaannya sampai PERSIS APA
+    // ADANYA ke mesin AI - penting agar tool pengetahuan kampus terpanggil
+    // dan jawabannya tepat. Pertanyaan panjang tetap bisa diketik; teks itu
+    // disintesis menjadi suara lebih dulu (lihat src/audio_processing/
+    // teks_ke_suara.py), namun hasilnya bergantung pada akurasi pengenalan
+    // suara server.
     quickReplies: [
-      { label: 'Cara Daftar?', text: 'Bagaimana cara mendaftar sebagai mahasiswa baru?' },
-      { label: 'Biaya Kuliah', text: 'Berapa rincian biaya kuliah?' },
-      { label: 'Program Studi', text: 'Apa saja program studi dan jurusan yang tersedia?' },
-      { label: 'Kontak & Lokasi', text: 'Di mana alamat kampus dan kontak yang bisa dihubungi?' },
+      { label: 'Cara Daftar?', text: 'Cara daftar di UCIC?' },
+      { label: 'Biaya Kuliah', text: 'Biaya kuliah UCIC?' },
+      { label: 'Program Studi', text: 'Program studi UCIC?' },
+      { label: 'Kontak & Lokasi', text: 'Kontak dan lokasi UCIC?' },
     ],
 
     // Pesan sistem

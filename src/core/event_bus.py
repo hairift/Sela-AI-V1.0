@@ -62,6 +62,11 @@ class Events:
     UI_AUTO_START = "ui_auto_start"  # 自动：开始/停止对话
     UI_ABORT_REQUEST = "ui_abort_request"  # 打断
     UI_SEND_TEXT = "ui_send_text"  # 发文本
+    # Kirim pertanyaan panjang sebagai SUARA. Server xiaozhi menolak teks
+    # panjang pada jalur listen/detect ("Detect is only for wake words"), jadi
+    # pertanyaan panjang disintesis menjadi suara lebih dulu lalu dikirim lewat
+    # jalur audio biasa. Ditangani oleh AudioPlugin.
+    UI_SEND_LONG_TEXT = "ui_send_long_text"
     UI_QUIT_REQUEST = "ui_quit_request"  # 退出
     UI_OPEN_SETTINGS = "ui_open_settings"  # 打开设置
     UI_TOGGLE_WINDOW = "ui_toggle_window"  # 显隐主窗口（GUI）

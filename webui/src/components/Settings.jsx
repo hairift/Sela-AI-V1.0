@@ -74,6 +74,26 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
   // Alamat server disunting lokal dulu, baru dikirim saat tombol Simpan ditekan
   // (supaya tidak menyimpan alamat setengah diketik).
   const [alamatServer, setAlamatServer] = useState('')
+  // Log waktu nyata dari mesin AI.
+  const [logBaris, setLogBaris] = useState([])
+  const [logJalur, setLogJalur] = useState('')
+  const [logMemuat, setLogMemuat] = useState(false)
+
+  const muatLog = async () => {
+    setLogMemuat(true)
+    try {
+      const r = await fetch('/api/log?baris=300')
+      const d = await r.json()
+      if (d.ok) {
+        setLogBaris(Array.isArray(d.lines) ? d.lines : [])
+        setLogJalur(d.path || '')
+      }
+    } catch (_) {
+      // Biarkan daftar log lama tetap tampil.
+    } finally {
+      setLogMemuat(false)
+    }
+  }
 
   const muat = async () => {
     try {
@@ -311,6 +331,34 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
               onChange={(v) => simpan({ aec: v })}
             />
           </Baris>
+        </Kartu>
+
+        <Kartu judul={t.id.logTitle}>
+          <div className="px-5 pb-4 space-y-2">
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+              {t.id.logDesc}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={muatLog}
+                className="text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-700 dark:bg-slate-700 text-white font-semibold hover:bg-slate-800"
+              >
+                {t.id.logRefresh}
+              </button>
+              {logJalur && (
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                  {logJalur}
+                </span>
+              )}
+            </div>
+            <pre className="text-[10px] leading-relaxed font-mono text-emerald-300 bg-slate-950 rounded-xl p-3 max-h-64 overflow-auto whitespace-pre-wrap break-all">
+              {logMemuat
+                ? t.id.logLoading
+                : logBaris.length
+                  ? logBaris.slice(-120).join('\n')
+                  : t.id.logEmpty}
+            </pre>
+          </div>
         </Kartu>
 
         <Kartu judul={t.id.aboutApp}>

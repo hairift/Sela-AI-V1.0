@@ -15,6 +15,7 @@ import ChatPanel from './components/ChatPanel'
 import VoiceControls from './components/VoiceControls'
 import HamburgerMenu from './components/HamburgerMenu'
 import Settings from './components/Settings'
+import GerbangAdmin from './components/GerbangAdmin'
 import Help from './components/Help'
 import useSelaBridge from './lib/useSelaBridge'
 
@@ -256,12 +257,14 @@ export default function App() {
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {halaman === 'pengaturan' && (
-            <Settings
-              onBack={() => setHalaman('beranda')}
-              theme={tema}
-              setTheme={setTema}
-              terhubung={terhubung}
-            />
+            <GerbangAdmin>
+              <Settings
+                onBack={() => setHalaman('beranda')}
+                theme={tema}
+                setTheme={setTema}
+                terhubung={terhubung}
+              />
+            </GerbangAdmin>
           )}
           {halaman === 'bantuan' && <Help onBack={() => setHalaman('beranda')} />}
         </div>
