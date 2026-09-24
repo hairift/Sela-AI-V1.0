@@ -78,6 +78,30 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
   const [logBaris, setLogBaris] = useState([])
   const [logJalur, setLogJalur] = useState('')
   const [logMemuat, setLogMemuat] = useState(false)
+  // Hasil uji mikrofon.
+  const [ujiMicMemuat, setUjiMicMemuat] = useState(false)
+  const [ujiMicHasil, setUjiMicHasil] = useState(null)
+
+  const ujiMikrofon = async () => {
+    setUjiMicMemuat(true)
+    setUjiMicHasil(null)
+    try {
+      const r = await fetch('/api/audio/uji-mikrofon?detik=3')
+      const d = await r.json()
+      if (d.ok) {
+        setUjiMicHasil({
+          nilai: d.nilai,
+          pesan: `${t.id.micLevel}: RMS ${d.rms} | ${t.id.micPeak} ${d.puncak} — ${d.saran}`,
+        })
+      } else {
+        setUjiMicHasil({ nilai: 'hening', pesan: d.error || t.id.micTestFail })
+      }
+    } catch (_) {
+      setUjiMicHasil({ nilai: 'hening', pesan: t.id.micTestFail })
+    } finally {
+      setUjiMicMemuat(false)
+    }
+  }
 
   const muatLog = async () => {
     setLogMemuat(true)
@@ -324,6 +348,31 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
               ))}
             </select>
           </Baris>
+          <Baris
+            label={t.id.micTest}
+            keterangan={t.id.micTestDesc}
+          >
+            <button
+              onClick={ujiMikrofon}
+              disabled={ujiMicMemuat}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-40"
+            >
+              {ujiMicMemuat ? t.id.micTesting : t.id.micTestBtn}
+            </button>
+          </Baris>
+          {ujiMicHasil && (
+            <div className="px-5 pb-3">
+              <p
+                className={`text-[11px] leading-relaxed rounded-lg px-3 py-2 ${
+                  ujiMicHasil.nilai === 'baik'
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {ujiMicHasil.pesan}
+              </p>
+            </div>
+          )}
           <Baris label="Echo Cancellation (AEC)" keterangan="Mengurangi gema pengeras suara agar mikrofon tidak terganggu.">
             <Sakelar
               aktif={Boolean(config?.aec)}

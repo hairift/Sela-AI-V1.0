@@ -9,6 +9,8 @@ terbuka ke jaringan. Ini juga membuatnya aman dipasang pada kios kampus.
 
 from __future__ import annotations
 
+import asyncio
+
 import json
 from pathlib import Path
 from typing import Any, Optional
@@ -93,6 +95,7 @@ class SelaWebServer:
         app.router.add_post("/api/admin/verifikasi", self._admin_verifikasi_handler)
         app.router.add_get("/api/log", self._log_handler)
         app.router.add_get("/api/devices", self._devices_handler)
+        app.router.add_get("/api/audio/uji-mikrofon", self._uji_mikrofon_handler)
         app.router.add_get("/", self._index_handler)
         # Aset statis (JS/CSS/model 3D).
         if self._dist.is_dir():
@@ -317,6 +320,85 @@ class SelaWebServer:
         except Exception as e:
             logger.warning(f"SelaWebServer: gagal menulis config: {e}")
             return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    async def _uji_mikrofon_handler(self, request: web.Request) -> web.StreamResponse:
+        """Rekam mikrofon sebentar dan laporkan level suaranya.
+
+        Berguna saat pengguna melaporkan "mikrofon tertekan tetapi suara saya
+        tidak menjadi teks". Bila level RMS mendekati nol, masalahnya ada di
+        sisi perangkat/izin mikrofon - bukan di mesin AI - sehingga pengguna
+        mendapat petunjuk yang tepat alih-alih menebak.
+        """
+        try:
+            detik = float(request.query.get("detik", "3"))
+        except Exception:
+            detik = 3.0
+        detik = max(1.0, min(8.0, detik))
+
+        try:
+            import numpy as np
+            import sounddevice as sd
+
+            from src.constants.constants import AudioConfig
+
+            laju = AudioConfig.INPUT_SAMPLE_RATE
+            rekaman = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: sd.rec(
+                    int(laju * detik),
+                    samplerate=laju,
+                    channels=1,
+                    dtype="float32",
+                ),
+            )
+            await asyncio.get_event_loop().run_in_executor(None, sd.wait)
+            data = np.asarray(rekaman, dtype=np.float32).reshape(-1)
+            if data.size == 0:
+                return web.json_response(
+                    {"ok": False, "error": "Tidak ada data dari mikrofon."}
+                )
+            rms = float(np.sqrt(np.mean(data * data)))
+            puncak = float(np.max(np.abs(data)))
+
+            if rms < 0.001:
+                nilai = "hening"
+                saran = (
+                    "Mikrofon hampir tidak menangkap suara. Periksa: "
+                    "(1) mikrofon tidak diredam (alsamixer -c 0, tekan M bila 'MM'), "
+                    "(2) volume rekam dinaikkan, "
+                    "(3) perangkat masukan yang dipilih sudah benar, "
+                    "(4) pengguna tergabung di grup 'audio'. "
+                    "Di Linux, jalankan: arecord -d 3 -f S16_LE -r 16000 tes.wav "
+                    "lalu aplay tes.wav untuk memastikan."
+                )
+            elif rms < 0.01:
+                nilai = "pelan"
+                saran = (
+                    "Suara tertangkap tetapi lemah. Naikkan volume rekam "
+                    "(alsamixer) atau dekatkan mikrofon."
+                )
+            else:
+                nilai = "baik"
+                saran = "Mikrofon menangkap suara dengan baik."
+
+            logger.info(
+                f"Uji mikrofon: rms={rms:.4f} puncak={puncak:.4f} ({nilai})"
+            )
+            return web.json_response(
+                {
+                    "ok": True,
+                    "rms": round(rms, 5),
+                    "puncak": round(puncak, 5),
+                    "detik": detik,
+                    "nilai": nilai,
+                    "saran": saran,
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Uji mikrofon gagal: {e}")
+            return web.json_response(
+                {"ok": False, "error": f"Uji mikrofon gagal: {e}"}, status=500
+            )
 
     async def _devices_handler(self, request: web.Request) -> web.StreamResponse:
         try:

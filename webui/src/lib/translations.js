@@ -114,6 +114,16 @@ export const t = {
     // Catatan: nilai sebenarnya ada di sisi mesin AI, bukan di berkas ini.
     adminPasswordNote: 'Kata sandi diperiksa oleh mesin AI, bukan disimpan di antarmuka.',
 
+    // Uji mikrofon
+    micTest: 'Uji Mikrofon',
+    micTestDesc:
+      'Rekam 3 detik dan lihat level suaranya. Bila level hampir nol, masalahnya di perangkat mikrofon, bukan di mesin AI.',
+    micTestBtn: 'Mulai Uji',
+    micTesting: 'Merekam...',
+    micTestFail: 'Uji mikrofon gagal dijalankan.',
+    micLevel: 'Level suara',
+    micPeak: 'Puncak',
+
     // Log waktu nyata
     logTitle: 'Log Mesin AI',
     logDesc: 'Catatan terbaru dari mesin AI, berguna saat ada masalah.',
