@@ -325,13 +325,34 @@ def test_app_and_weather_register_not_decorator_discovery():
     assert "get_weather" in names
     assert "get_forecast" in names
 
-    # add_common_tools 一次装齐
+    # add_common_tools 一次装齐.
+    # Catatan: tool cuaca bawaan py-xiaozhi masih mock dan namanya bentrok
+    # dengan get_weather milik server AI, sehingga sengaja DILEWATI pada jalur
+    # produksi. Lihat mcp_server.add_common_tools.
     server2 = McpServer()
     server2.add_common_tools(music_player=None)
     names2 = {t.name for t in server2.tools}
     assert "self.application.launch" in names2
-    assert "get_weather" in names2
     assert "self.audio_speaker.set_volume" in names2
+    assert "get_weather" not in names2, (
+        "Tool cuaca mock tidak boleh terdaftar pada jalur produksi: "
+        "namanya bentrok dengan get_weather milik server AI dan datanya palsu"
+    )
+
+    # Tetap bisa diaktifkan untuk pengembangan lewat variabel lingkungan.
+    import os as _os
+
+    lama = _os.environ.get("SELA_AKTIFKAN_CUACA_MOCK")
+    _os.environ["SELA_AKTIFKAN_CUACA_MOCK"] = "1"
+    try:
+        server3 = McpServer()
+        server3.add_common_tools(music_player=None)
+        assert "get_weather" in {t.name for t in server3.tools}
+    finally:
+        if lama is None:
+            _os.environ.pop("SELA_AKTIFKAN_CUACA_MOCK", None)
+        else:
+            _os.environ["SELA_AKTIFKAN_CUACA_MOCK"] = lama
 
     # 装饰器模块已移除
     import importlib.util
