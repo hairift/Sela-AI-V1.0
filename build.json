@@ -36,6 +36,8 @@
     },
     "windows": {
       "inno_setup": {
+        "setup_icon": "assets/icon.ico",
+        "license_file": "LICENSE",
         "create_desktop_icon": true,
         "create_start_menu_icon": true,
         "allow_run_after_install": true,

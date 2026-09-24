@@ -263,6 +263,20 @@ Sela-AI-V1.0/
 
 ---
 
+## Bahasa jawaban SELA
+
+Antarmuka aplikasi (web, CLI, TUI) **seluruhnya Bahasa Indonesia**.
+
+Namun **bahasa jawaban model AI ditentukan di sisi server**, bukan di aplikasi.
+Aplikasi hanya mengirim sinyal bahasa (`Accept-Language: id-ID` pada request OTA
+dan koneksi WebSocket); model bahasa yang menyusun jawaban berjalan di server
+xiaozhi.
+
+Agar SELA menjawab dalam Bahasa Indonesia, atur **prompt/agent** pada akun
+xiaozhi Anda agar berbahasa Indonesia, atau arahkan aplikasi ke server xiaozhi
+buatan sendiri dengan prompt Indonesia. Caranya: ubah
+`SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL` pada berkas konfigurasi.
+
 ## Status verifikasi
 
 | Diperiksa | Hasil |
