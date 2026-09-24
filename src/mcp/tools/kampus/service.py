@@ -21,6 +21,27 @@ logger = get_logger()
 # Kontak resmi yang diberikan bila informasi tidak ditemukan di dokumen.
 KONTAK = "Admin PMB UCIC (WhatsApp 0812 1670 0519) atau pmb.cic.ac.id"
 
+
+def _ambil_argumen(args: Any, nama: str) -> str:
+    """Ambil satu argumen teks dari data yang dikirim McpServer.
+
+    McpServer memanggil handler dengan SATU argumen berupa dict parameter
+    (lihat McpTool.call -> ``self.callback(parsed_args)``), bukan dengan
+    parameter terpisah. Handler yang ditulis sebagai ``def f(pertanyaan)``
+    akan menerima dict itu sebagai `pertanyaan`, lalu gagal saat di-``strip``.
+    Fungsi ini menormalkan kedua bentuk agar aman.
+    """
+    if isinstance(args, dict):
+        nilai = args.get(nama)
+        if nilai is None:
+            # Terima juga nama lain yang lazim dipakai model.
+            for cadangan in ("q", "query", "text", "teks", "pertanyaan"):
+                if args.get(cadangan) is not None:
+                    nilai = args[cadangan]
+                    break
+        return str(nilai or "").strip()
+    return str(args or "").strip()
+
 _index: Optional[LexicalIndex] = None
 _dokumen: List[Dict[str, Any]] = []
 
@@ -64,17 +85,17 @@ def _format_konteks(kandidat: List[Dict[str, Any]]) -> str:
     return "\n\n".join(bagian)
 
 
-def cari_info_kampus(pertanyaan: str = "") -> str:
+def cari_info_kampus(args: Any = None) -> str:
     """Cari informasi kampus UCIC dari basis pengetahuan resmi.
 
     Args:
-        pertanyaan: Pertanyaan pengguna, mis. "berapa biaya kuliah teknik informatika".
+        args: Dict parameter dari McpServer, berisi ``pertanyaan``.
 
     Returns:
         Konteks dokumen resmi untuk dijawab SELA, atau pesan jujur bila tidak ada
         dokumen yang benar-benar cocok.
     """
-    pertanyaan = (pertanyaan or "").strip()
+    pertanyaan = _ambil_argumen(args, "pertanyaan")
     if not pertanyaan:
         return (
             "Pertanyaan kosong. Mintalah pengguna menyebutkan topik kampus yang "
@@ -109,7 +130,7 @@ def cari_info_kampus(pertanyaan: str = "") -> str:
     )
 
 
-def info_kampus() -> str:
+def info_kampus(args: Any = None) -> str:
     """Ringkasan basis pengetahuan kampus (jumlah dokumen & kategori)."""
     index = _pastikan_index()
     if index is None:

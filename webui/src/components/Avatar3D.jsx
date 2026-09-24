@@ -305,17 +305,26 @@ function SelaModel({ state, gerakan, lipRef }) {
 
     // ── Lipsync dari mesin AI (bukan analisis audio lokal) ──────────────
     const data = lipRef.current || { v: 0, viseme: 'sil' }
-    const volumeMultiplier = state === 'speaking' ? Math.min(1.25, Math.max(0.24, data.v * 2.6)) : 0
-    const visemeAktif = data.v > 0.012 ? data.viseme : null
+    const energi = Math.max(0, Number(data.v) || 0)
+    // Amplitudo. Mesin AI mengirim v dari RMS audio keluaran nyata, dan pada
+    // suara TTS nilainya kecil (sekitar 0,05). Tanpa lantai yang cukup tinggi,
+    // mulut hanya terbuka ~0,13 dan terlihat seperti tidak bergerak.
+    //
+    // Mulut digerakkan oleh ENERGI audio, bukan hanya oleh state perangkat:
+    // state bisa berayun speaking <-> idle di sela kalimat, dan bila hanya
+    // bergantung pada state mulut akan berkedip tutup di tengah ucapan.
+    const adaSuara = state === 'speaking' || energi > 0.02
+    const volumeMultiplier = adaSuara ? Math.min(1.3, 0.6 + energi * 1.0) : 0
+    const visemeAktif = energi > 0.012 ? data.viseme : null
 
     let targetAa = 0
     let targetIh = 0
     let targetU = 0
     let targetE = 0
     let targetO = 0
-    let targetSil = state === 'speaking' ? 0.05 : 0.85
+    let targetSil = adaSuara ? 0.05 : 0.85
 
-    if (state === 'speaking') {
+    if (adaSuara) {
       const peta = visemeAktif ? PETA_VISEME[visemeAktif] : null
       if (peta) {
         targetAa = (peta.visemeAa || 0) * volumeMultiplier

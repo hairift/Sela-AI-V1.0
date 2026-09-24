@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 import time
 from typing import Any, Optional
 
@@ -36,6 +37,62 @@ LIP_INTERVAL = 1.0 / LIP_FPS
 LIP_RMS_FLOOR = 0.004
 # Pengali RMS -> bukaan mulut. Dikali silang agar cocok untuk suara TTS normal.
 LIP_GAIN = 9.0
+
+
+def _nama_device_state(state: Any) -> str:
+    """Ambil nama DeviceState dalam huruf kecil dari berbagai bentuk data.
+
+    EventBus mengirim ``device_state_changed`` dengan data berupa dict
+    ``{"old_state": ..., "new_state": ...}``. Bila dict itu langsung diubah
+    menjadi string, antarmuka menerima repr Python seperti
+    ``"{'old_state': <DeviceState.IDLE: 'idle'>, ...}"`` yang tidak dikenali
+    pemetaan state, sehingga avatar selalu dianggap idle dan **mulut tidak
+    bergerak saat SELA bicara**.
+    """
+    nilai = state
+    if isinstance(nilai, dict):
+        nilai = (
+            nilai.get("new_state")
+            or nilai.get("state")
+            or nilai.get("new")
+            or nilai.get("value")
+        )
+    if nilai is None:
+        return "idle"
+    nama = getattr(nilai, "name", None) or getattr(nilai, "value", None)
+    if nama is None:
+        # Cadangan terakhir: ambil kata pertama dari repr, buang sisa sintaks.
+        teks = str(nilai)
+        potongan = teks.replace("<", " ").replace(">", " ").replace("'", " ").split()
+        nama = potongan[0] if potongan else "idle"
+    return str(nama).strip().lower()
+
+
+# Pola teks dari server yang bukan jawaban untuk pengguna, sehingga tidak boleh
+# muncul sebagai gelembung obrolan:
+#   - nama tool yang dipanggil model, mis. "% cari_info_kampus..."
+#   - penanda internal berawalan kurung siku, mis. "[IGNORE_NOISE]"
+_POLA_BUKAN_JAWABAN = re.compile(r"^\s*(%|\[IGNORE_NOISE\]|\[Pertanyaan)", re.IGNORECASE)
+
+
+def _teks_bukan_untuk_ditampilkan(teks: str, teks_pengguna_terakhir: str = "") -> bool:
+    """Saring teks yang tidak layak tampil sebagai gelembung obrolan.
+
+    Dua kasus nyata yang pernah muncul di antarmuka:
+    1. Pertanyaan pengguna dipantulkan kembali oleh server sehingga muncul
+       sebagai jawaban SELA (gelembung ganda).
+    2. Nama tool yang dipanggil model ikut terkirim sebagai teks, mis.
+       "% cari_info_kampus..." - membingungkan pengguna.
+    """
+    bersih = (teks or "").strip()
+    if not bersih:
+        return True
+    if _POLA_BUKAN_JAWABAN.match(bersih):
+        return True
+    # Gema: teks sama persis dengan yang baru saja diketik pengguna.
+    if teks_pengguna_terakhir and bersih.casefold() == teks_pengguna_terakhir.strip().casefold():
+        return True
+    return False
 
 
 class SelaBridge:
@@ -65,8 +122,20 @@ class SelaBridge:
         self._lip_viseme = "sil"
         self._lip_at = 0.0
 
+        # Teks terakhir yang dikirim pengguna, untuk menyaring gemanya.
+        self._teks_terakhir = ""
+
         self._lip_task: Optional[asyncio.Task] = None
         self._running = False
+
+    def teks_layak_tampil(self, teks: str) -> bool:
+        """Apakah teks dari mesin AI layak muncul sebagai gelembung obrolan.
+
+        Dipakai juga oleh WebViewManager, karena jalur presenter
+        (``set_chat_text``) mengirim teks ke antarmuka secara terpisah dari
+        jalur EventBus di kelas ini.
+        """
+        return not _teks_bukan_untuk_ditampilkan(teks, self._teks_terakhir)
 
     # ------------------------------------------------------------------
     # Siklus hidup
@@ -156,6 +225,8 @@ class SelaBridge:
                 if text:
                     from src.ui.shared.events import UISendTextRequest
 
+                    # Simpan agar gema teks yang sama dari server bisa disaring.
+                    self._teks_terakhir = text
                     await self._emit(Events.UI_SEND_TEXT, UISendTextRequest(text=text))
                     await self.broadcast({"t": "user_text", "text": text})
 
@@ -201,7 +272,7 @@ class SelaBridge:
     # Handler EventBus (Python -> Web)
     # ------------------------------------------------------------------
     async def _on_device_state(self, state: Any) -> None:
-        name = getattr(state, "name", str(state)).lower()
+        name = _nama_device_state(state)
         self._snapshot["deviceState"] = name
         await self.broadcast({"t": "state", "state": name})
 
@@ -212,12 +283,13 @@ class SelaBridge:
 
         if msg_type == "tts":
             text = message.get("text")
-            if text:
+            if text and not _teks_bukan_untuk_ditampilkan(text, self._teks_terakhir):
                 self._snapshot["lastTts"] = text
                 await self.broadcast({"t": "chat", "role": "assistant", "text": text})
         elif msg_type == "stt":
             text = message.get("text")
-            if text:
+            if text and not _teks_bukan_untuk_ditampilkan(text, self._teks_terakhir):
+                self._snapshot["lastStt"] = text
                 await self.broadcast({"t": "chat", "role": "user", "text": text})
         elif msg_type == "llm":
             emotion = message.get("emotion")

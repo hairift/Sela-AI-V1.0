@@ -112,6 +112,17 @@ export default function App() {
     setGerakan({ nama, kunci: `${nama}-${Date.now()}` })
   }, [emosi])
 
+  // Kait diagnostik: memungkinkan pengujian otomatis mengirim teks tanpa
+  // menyentuh antarmuka (lihat scripts/cek_lipsync_visual.py).
+  useEffect(() => {
+    window.__selaKirim = (teks) => aksi.kirimTeks(teks)
+    window.__selaMic = () => aksi.rekamToggle()
+    return () => {
+      delete window.__selaKirim
+      delete window.__selaMic
+    }
+  }, [aksi])
+
   useEffect(() => {
     if (tema === 'dark') document.documentElement.classList.add('dark')
     else document.documentElement.classList.remove('dark')

@@ -217,6 +217,10 @@ class WebViewManager(ViewPort):
         self._fire({"t": "emotion", "emotion": emotion})
 
     def set_chat_text(self, text: str) -> None:
+        # Saring gema pertanyaan pengguna dan nama tool mentah, supaya hanya
+        # jawaban SELA yang tampil sebagai gelembung obrolan.
+        if not self.bridge.teks_layak_tampil(text):
+            return
         self._fire({"t": "chat", "role": "assistant", "text": text})
 
     def set_music_line(self, text: str) -> None:

@@ -283,25 +283,43 @@ def cari_duckduckgo(kueri: str, maks: int = 5) -> List[Dict[str, str]]:
 # ── Pencarian gabungan ───────────────────────────────────────────────────────
 
 
-def cari_web(kueri: str, bahasa: str = "id") -> str:
+def _ambil_argumen(args, nama: str) -> str:
+    """Ambil satu argumen teks dari data yang dikirim McpServer.
+
+    McpServer memanggil handler dengan SATU argumen berupa dict parameter
+    (lihat McpTool.call -> ``self.callback(parsed_args)``), bukan parameter
+    terpisah. Handler yang ditulis sebagai ``def f(kueri)`` akan menerima dict
+    itu sebagai `kueri`, lalu gagal saat di-``strip``.
+    """
+    if isinstance(args, dict):
+        nilai = args.get(nama)
+        if nilai is None:
+            for cadangan in ("q", "query", "text", "teks", "kueri"):
+                if args.get(cadangan) is not None:
+                    nilai = args[cadangan]
+                    break
+        return str(nilai or "").strip()
+    return str(args or "").strip()
+
+
+def cari_web(args=None) -> str:
     """Cari jawaban terkini di internet dan kembalikan konteks untuk SELA.
 
     Args:
-        kueri: Pertanyaan pengguna apa adanya.
-        bahasa: Kode bahasa untuk Wikipedia ("id" atau "en").
+        args: Dict parameter dari McpServer, berisi ``kueri``.
 
     Returns:
         Konteks berisi kutipan dari Wikipedia/Wikidata/DuckDuckGo, atau pesan
         jujur bila tidak ada hasil.
     """
-    kueri = (kueri or "").strip()
+    kueri = _ambil_argumen(args, "kueri")
     if not kueri:
         return "Pertanyaan kosong; tidak ada yang bisa dicari."
 
     logger.info(f"Pencarian web: '{kueri}'")
 
     jabatan = cari_jabatan(kueri)
-    wiki = jabatan or cari_wikipedia(kueri, bahasa)
+    wiki = jabatan or cari_wikipedia(kueri, "id")
 
     # Untuk permintaan berita, tambahkan kata "berita" agar hasilnya relevan.
     kueri_ddg = f"{kueri} berita terbaru" if _minta_berita(kueri) else kueri
