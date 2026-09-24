@@ -83,6 +83,7 @@ export default function App() {
     aiTerhubung,
     stateAvatar,
     emosi,
+    teksTombol,
     barisMusik,
     pesan,
     lip,

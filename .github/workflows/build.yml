@@ -153,6 +153,34 @@ jobs:
           test -f dist/index.html || { echo "::error::webui/dist/index.html tidak terbentuk"; exit 1; }
           ls -la dist
 
+      - name: Uji asap antarmuka (cegah halaman putih)
+        shell: bash
+        run: |
+          # Rilis 1.0.3 dan 1.0.4 pernah menampilkan halaman PUTIH KOSONG karena
+          # satu variabel lupa diambil dari hook (ReferenceError di JavaScript).
+          # Galat seperti itu tidak tertangkap oleh uji Python maupun oleh
+          # pembangunan berkas - hanya muncul saat React merender di peramban.
+          # Langkah ini memuat setiap halaman di Chrome sungguhan dan gagal bila
+          # ada galat JS atau halaman tidak tergambar.
+          python -m pip install --quiet websockets
+          SELA_NO_WINDOW=1 python main.py --skip-activation > sela-asap.log 2>&1 &
+          APP_PID=$!
+          set +e
+          python scripts/uji_asap_ui.py
+          KODE=$?
+          set -e
+          kill $APP_PID 2>/dev/null || true
+          if [ "$KODE" = "2" ]; then
+            echo "::warning::Aplikasi tidak bisa dijalankan di runner ini (kemungkinan tanpa perangkat audio). Uji asap dilewati."
+            tail -40 sela-asap.log || true
+            exit 0
+          fi
+          if [ "$KODE" != "0" ]; then
+            echo "::error::Antarmuka gagal uji asap (halaman putih atau galat JS)."
+            tail -40 sela-asap.log || true
+            exit 1
+          fi
+
       - name: Extract version from tag
         id: version
         shell: bash
