@@ -29,6 +29,10 @@ httpx>=0.27.0
 # desktop, bukan membuka tab peramban. Bila backend tidak tersedia
 # (Linux tanpa GTK/Qt), launcher otomatis mundur ke Chromium/peramban.
 pywebview>=5.0
+# Pencarian musik global. Katalog Kuwo (layanan Tiongkok) hampir tidak
+# memuat lagu Indonesia, sehingga permintaan seperti "putar lagu Sheila On 7"
+# selalu gagal. yt-dlp mencari lewat YouTube sebagai cadangan.
+yt-dlp>=2024.8.6
 
 # --- AI / ML ---
 openai>=1.0.0
