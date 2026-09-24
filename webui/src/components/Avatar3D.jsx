@@ -163,7 +163,7 @@ function SelaModel({ state, gerakan, lipRef }) {
     nextAt: 1.2 + Math.random() * 2.8,
   })
   const { scene, animations } = useGLTF('/models/sela.glb')
-  const { actions } = useAnimations(animations, groupRef)
+  const { actions, mixer } = useAnimations(animations, groupRef)
 
   const [gerakanJalan, setGerakanJalan] = useState(null)
   const animasiAktifRef = useRef(null)
@@ -180,6 +180,35 @@ function SelaModel({ state, gerakan, lipRef }) {
 
   const animasiLatar =
     state === 'thinking' ? 'Thinking' : state === 'speaking' ? 'Talking' : 'Idle'
+
+  // Diagnostik: berguna saat memeriksa kenapa avatar tampak diam di pose
+  // istirahat (T-pose). Terlihat di konsol peramban, dan scene-nya dipaparkan
+  // lewat window.__sela3d agar bisa diperiksa dari luar (lihat
+  // scripts/cek_animasi_avatar.py).
+  useEffect(() => {
+    if (!actions) return
+    const tersedia = Object.keys(actions)
+    console.log('[Avatar 3D] klip animasi tersedia:', tersedia)
+
+    const tulang = []
+    scene.traverse((o) => {
+      if (o.isBone) tulang.push(o)
+    })
+    console.log('[Avatar 3D] jumlah tulang:', tulang.length)
+
+    try {
+      window.__sela3d = { scene, actions, tulang, mixer }
+    } catch (_) {
+      // diabaikan
+    }
+
+    if (!tersedia.length) {
+      console.warn(
+        '[Avatar 3D] Model tidak memuat klip animasi apa pun - avatar akan ' +
+          'tampak kaku di pose istirahat.',
+      )
+    }
+  }, [actions, scene, mixer])
 
   useEffect(() => {
     const nama = gerakan?.nama
@@ -210,15 +239,32 @@ function SelaModel({ state, gerakan, lipRef }) {
     if (!actions) return
     if (gerakanJalan) return
     const aksi = actions[animasiLatar] || actions['Idle'] || Object.values(actions)[0]
-    if (!aksi) return
+    if (!aksi) {
+      console.warn('[Avatar 3D] Animasi tidak ditemukan:', animasiLatar)
+      return
+    }
+    // Penjagaan ini WAJIB. Efek ini bisa berjalan berkali-kali; tanpa
+    // penjagaan, aksi.reset() dipanggil terus dan animasi terkunci di frame 0
+    // (yang pada model ini persis pose istirahat / T-pose).
+    // Perpindahan dari animasi sekali-jalan tetap tertangani karena
+    // animasiAktifRef menyimpan nama aksi terakhir yang kita jalankan.
     if (aksi.isRunning() && animasiAktifRef.current === animasiLatar) return
+
     aksi.setLoop(THREE.LoopRepeat, Infinity)
     aksi.clampWhenFinished = false
+    aksi.enabled = true
+    aksi.setEffectiveTimeScale(1)
     aksi.reset().fadeIn(0.35).play()
     Object.entries(actions).forEach(([nama, lain]) => {
       if (nama !== animasiLatar && !ANIMASI_DILARANG.has(nama)) lain?.fadeOut(0.35)
     })
     animasiAktifRef.current = animasiLatar
+    console.log(
+      `[Avatar 3D] memutar "${animasiLatar}" | durasi klip:`,
+      aksi.getClip()?.duration,
+      '| berjalan:',
+      aksi.isRunning(),
+    )
   }, [actions, animasiLatar, gerakanJalan])
 
   const bindings = useMemo(() => {

@@ -8,7 +8,7 @@
  *   - Layar desktop: avatar di tengah, panel chat mengambang di kanan.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Navbar from './components/Navbar'
 import Avatar3D from './components/Avatar3D'
 import ChatPanel from './components/ChatPanel'
@@ -27,6 +27,36 @@ const KUNCI_TEMA = 'sela-tema'
 // Berguna untuk kios: petugas bisa membuka halaman setelan tanpa mengklik menu,
 // dan memudahkan pengujian otomatis tiap halaman.
 const HALAMAN_SAH = new Set(['beranda', 'pengaturan', 'bantuan'])
+
+// Emosi dari mesin AI -> animasi sekali-jalan pada avatar 3D.
+// Nama animasi harus sama persis dengan yang ada di dalam sela.glb:
+// Confused, Goodbye, Greeting, Idle, Nodding, Shaking Head, Talking, Thinking.
+const PETA_EMOSI_ANIMASI = {
+  // positif
+  happy: 'Nodding',
+  laughing: 'Nodding',
+  funny: 'Nodding',
+  cool: 'Nodding',
+  confident: 'Nodding',
+  delicious: 'Nodding',
+  kissy: 'Nodding',
+  loving: 'Nodding',
+  relaxed: 'Nodding',
+  // bingung / ragu
+  confused: 'Confused',
+  silly: 'Confused',
+  embarrassed: 'Confused',
+  // sedih
+  sad: 'Confused',
+  crying: 'Confused',
+  // tidak setuju / terkejut
+  angry: 'Shaking Head',
+  shocked: 'Shaking Head',
+  surprised: 'Shaking Head',
+  // menyapa / berpamitan
+  greeting: 'Greeting',
+  goodbye: 'Goodbye',
+}
 
 function halamanAwal() {
   if (typeof window === 'undefined') return 'beranda'
@@ -67,6 +97,20 @@ export default function App() {
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   )
   const [tema, setTema] = useState(temaAwal)
+  // Animasi sekali-jalan yang dipicu oleh emosi dari mesin AI.
+  const [gerakan, setGerakan] = useState(null)
+  const emosiSebelumnya = useRef(null)
+
+  useEffect(() => {
+    if (!emosi) return
+    const kunci = String(emosi).toLowerCase()
+    if (kunci === emosiSebelumnya.current) return
+    emosiSebelumnya.current = kunci
+    const nama = PETA_EMOSI_ANIMASI[kunci]
+    if (!nama) return
+    // `kunci` unik tiap kali supaya animasi yang sama bisa diputar ulang.
+    setGerakan({ nama, kunci: `${nama}-${Date.now()}` })
+  }, [emosi])
 
   useEffect(() => {
     if (tema === 'dark') document.documentElement.classList.add('dark')
@@ -169,7 +213,7 @@ export default function App() {
             {/* Avatar 3D sebagai latar penuh */}
             <div className="absolute inset-0 pointer-events-none z-0">
               <div className="pointer-events-auto w-full h-full">
-                <Avatar3D state={stateAvatar} theme={tema} lip={lip} gerakan={null} />
+                <Avatar3D state={stateAvatar} theme={tema} lip={lip} gerakan={gerakan} />
               </div>
             </div>
 
