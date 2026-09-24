@@ -46,7 +46,12 @@ Hasil paket `.exe` (dijalankan dari `dist/sela-ai/`):
 | **Bahasa Indonesia penuh** | Seluruh tombol, judul, dan pesan dalam Bahasa Indonesia |
 | **Suara dua arah** | Mikrofon → teks, jawaban → suara, dengan tombol besar di tengah layar |
 | **Panel percakapan** | Riwayat sesi, pertanyaan populer, kirim teks, sembunyikan/tampilkan panel |
-| **Pengaturan nyata** | Tema, perangkat mikrofon/pengeras suara, kata bangun, echo cancellation — tersimpan ke konfigurasi mesin AI |
+| **Pengaturan lengkap** | Tema, perangkat mikrofon/pengeras suara, pilihan & sensitivitas kata bangun, alamat server AI, echo cancellation, platform & kualitas musik — tersimpan ke konfigurasi mesin AI |
+| **Pengetahuan kampus UCIC** | 197 dokumen resmi (biaya, jurusan, pendaftaran, dosen, fasilitas) dengan pencarian BM25 + gerbang anti-halusinasi — SELA menjawab dari dokumen, bukan mengarang |
+| **Pencarian internet** | Berita terkini, profil & jabatan tokoh publik, cuaca — lewat Wikipedia, Wikidata, dan DuckDuckGo tanpa API key |
+| **Pemutar musik** | Cari dan putar lagu lewat perintah suara |
+| **Kata bangun ganda** | Ucapkan **"SELA"** atau **"hai hai"** — percakapan langsung aktif tanpa menyentuh layar |
+| **Jendela desktop** | Membuka jendela native (pywebview) tanpa bilah peramban; mundur otomatis ke Chromium/peramban bila backend tidak tersedia |
 | **Bantuan terintegrasi** | Panduan penggunaan dan pemecahan masalah di dalam aplikasi |
 | **Tetap satu mesin AI** | Seluruh kecerdasan ada di py-xiaozhi; antarmuka hanya tampilan |
 
