@@ -1,0 +1,28 @@
+{
+  "name": "sela-ai-webui",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SELA AI WebUI - Antarmuka asisten kampus UCIC (portrait + desktop) di atas mesin AI py-xiaozhi",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^0.179.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.3",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.9",
+    "tailwindcss": "^3.4.19",
+    "vite": "^4.4.5"
+  }
+}

@@ -1,0 +1,130 @@
+SELA AI — PERJANJIAN LISENSI PERANGKAT LUNAK KEPEMILIKAN (PROPRIETARY)
+=====================================================================
+
+Hak Cipta (c) 2026 Universitas Catur Insan Cendekia (UCIC).
+Seluruh hak cipta dilindungi undang-undang.
+
+Versi perangkat lunak: 1.0.0
+Pemegang hak: Universitas Catur Insan Cendekia (UCIC), Cirebon, Indonesia
+
+
+1. DEFINISI
+-----------
+"Perangkat Lunak" berarti SELA AI, termasuk namun tidak terbatas pada kode
+sumber, kode objek, dokumentasi, antarmuka pengguna, aset visual, model 3D,
+basis pengetahuan kampus, dan seluruh berkas pendukung yang disertakan.
+
+"Pemegang Hak" berarti Universitas Catur Insan Cendekia (UCIC).
+
+"Pengguna" berarti individu atau badan hukum yang memperoleh akses sah atas
+Perangkat Lunak melalui Pemegang Hak.
+
+
+2. PEMBERIAN LISENSI TERBATAS
+-----------------------------
+Pemegang Hak memberikan kepada Pengguna lisensi yang bersifat:
+
+  (a) tidak eksklusif (non-exclusive),
+  (b) tidak dapat dialihkan (non-transferable),
+  (c) tidak dapat disublisensikan (non-sublicensable),
+  (d) dapat dicabut (revocable),
+
+semata-mata untuk menggunakan Perangkat Lunak bagi keperluan internal
+Pemegang Hak dan operasional kampus, sesuai dengan ketentuan dalam perjanjian
+ini.
+
+
+3. PEMBATASAN
+-------------
+Tanpa izin tertulis sebelumnya dari Pemegang Hak, Pengguna DILARANG:
+
+  (a) menyalin, memperbanyak, atau mendistribusikan Perangkat Lunak, baik
+      sebagian maupun seluruhnya, dalam bentuk apa pun;
+  (b) menjual, menyewakan, meminjamkan, melisensikan ulang, atau
+      memindahtangankan Perangkat Lunak kepada pihak ketiga;
+  (c) memodifikasi, mengubah, menerjemahkan, atau membuat karya turunan
+      berdasarkan Perangkat Lunak;
+  (d) melakukan rekayasa balik (reverse engineering), dekompilasi, atau
+      membongkar Perangkat Lunak, kecuali sejauh diizinkan oleh hukum yang
+      berlaku;
+  (e) menghapus, mengaburkan, atau mengubah pemberitahuan hak cipta, merek
+      dagang, atau atribusi lain yang terdapat dalam Perangkat Lunak;
+  (f) menggunakan Perangkat Lunak untuk mengembangkan produk atau layanan
+      yang bersaing dengan Perangkat Lunak;
+  (g) menggunakan Perangkat Lunak untuk tujuan yang melanggar hukum.
+
+
+4. KEPEMILIKAN
+--------------
+Perangkat Lunak dilisensikan, bukan dijual. Pemegang Hak tetap memiliki
+seluruh hak, kepemilikan, dan kepentingan atas Perangkat Lunak, termasuk
+seluruh hak kekayaan intelektual yang terkandung di dalamnya. Perjanjian ini
+tidak memberikan kepada Pengguna hak kepemilikan apa pun atas Perangkat Lunak.
+
+
+5. KOMPONEN PIHAK KETIGA
+------------------------
+Perangkat Lunak memuat komponen pihak ketiga yang dilisensikan secara
+terpisah dengan ketentuan masing-masing, antara lain:
+
+  - py-xiaozhi (https://github.com/huangjunsen0406/py-xiaozhi) — MIT License
+  - sherpa-onnx — Apache License 2.0
+  - Opus (libopus) — BSD 3-Clause License
+  - WebRTC Audio Processing Module (webrtc_apm) — BSD 3-Clause License
+  - React, Three.js, dan pustaka antarmuka web lain — MIT License
+  - Qwen (model bahasa) — Apache License 2.0
+  - Supertonic (model suara) — sesuai ketentuan pemilik model
+
+Ketentuan lisensi pihak ketiga tersebut tetap berlaku dan tidak dibatalkan
+oleh perjanjian ini. Daftar lengkap terdapat pada berkas NOTICE.
+
+
+6. TANPA JAMINAN
+----------------
+PERANGKAT LUNAK DISEDIAKAN "SEBAGAIMANA ADANYA" (AS IS) TANPA JAMINAN APA PUN,
+BAIK TERSURAT MAUPUN TERSIRAT, TERMASUK NAMUN TIDAK TERBATAS PADA JAMINAN
+KELAYAKAN UNTUK DIPERDAGANGKAN, KESESUAIAN UNTUK TUJUAN TERTENTU, DAN TIDAK
+ADANYA PELANGGARAN HAK PIHAK KETIGA.
+
+Pemegang Hak tidak menjamin bahwa Perangkat Lunak akan berjalan tanpa
+gangguan, bebas dari kesalahan, atau memenuhi seluruh kebutuhan Pengguna.
+Kualitas dan kinerja Perangkat Lunak sepenuhnya menjadi risiko Pengguna.
+
+
+7. PEMBATASAN TANGGUNG JAWAB
+----------------------------
+SEJAUH DIIZINKAN OLEH HUKUM YANG BERLAKU, PEMEGANG HAK TIDAK BERTANGGUNG JAWAB
+ATAS KERUGIAN APA PUN, BAIK LANGSUNG, TIDAK LANGSUNG, INSIDENTAL, KHUSUS,
+MAUPUN KONSEKUENSIAL, TERMASUK KEHILANGAN DATA, KEHILANGAN KEUNTUNGAN, ATAU
+GANGGUAN BISNIS, YANG TIMBUL DARI PENGGUNAAN ATAU KETIDAKMAMPUAN MENGGUNAKAN
+PERANGKAT LUNAK, MESKIPUN TELAH DIBERITAHU TENTANG KEMUNGKINAN KERUGIAN
+TERSEBUT.
+
+
+8. PENGHENTIAN
+--------------
+Perjanjian ini berlaku sampai dihentikan. Hak Pengguna di bawah perjanjian ini
+akan berakhir secara otomatis tanpa pemberitahuan apabila Pengguna melanggar
+salah satu ketentuan di dalamnya. Setelah penghentian, Pengguna wajib
+menghentikan seluruh penggunaan dan menghapus semua salinan Perangkat Lunak
+yang dimilikinya.
+
+
+9. HUKUM YANG BERLAKU
+---------------------
+Perjanjian ini diatur oleh dan ditafsirkan sesuai dengan hukum yang berlaku di
+Republik Indonesia. Setiap sengketa yang timbul dari perjanjian ini menjadi
+yurisdiksi eksklusif pengadilan di Indonesia.
+
+
+10. KONTAK
+----------
+Untuk permohonan lisensi, kerja sama, atau pertanyaan mengenai perjanjian ini:
+
+  Universitas Catur Insan Cendekia (UCIC)
+  Cirebon, Jawa Barat, Indonesia
+  Situs: cic.ac.id
+
+
+DENGAN MENGGUNAKAN PERANGKAT LUNAK INI, PENGGUNA DIANGGAP TELAH MEMBACA,
+MEMAHAMI, DAN MENYETUJUI SELURUH KETENTUAN DALAM PERJANJIAN INI.

@@ -1,0 +1,86 @@
+# ============================================================
+#  SELA AI - Dependensi Python
+#  Cara pasang:
+#      pip install -r requirements.txt
+#  atau (disarankan):
+#      python -m venv .venv
+#      .venv/bin/pip install -r requirements.txt
+# ============================================================
+
+# --- Antarmuka web (server lokal + jembatan WebSocket) ---
+aiohttp>=3.9.0
+numpy>=1.26.0
+
+# --- Audio ---
+sounddevice>=0.4.4
+soxr>=0.5.0
+opuslib>=3.0.1
+
+# --- Jaringan ---
+websockets>=11.0.3
+paho-mqtt>=2.1.0
+requests>=2.31.0
+# Dipakai src/mcp/tools/camera/vl_camera.py. Sebelumnya tidak tercantum,
+# sehingga fitur kamera/VL gagal di paket hasil build dengan
+# "No module named 'httpx'".
+httpx>=0.27.0
+
+# --- AI / ML ---
+openai>=1.0.0
+sherpa-onnx>=1.12.26
+sherpa-onnx-core>=1.12.26; sys_platform != "win32"
+
+# --- Gambar ---
+opencv-python-headless>=4.9.0
+pillow>=10.0.0
+
+# --- Kripto ---
+cryptography>=42.0.0
+
+# --- Utilitas ---
+psutil>=5.9.0
+pendulum>=3.0.0
+py-machineid>=0.6.0
+platformdirs>=4.0.0
+
+# --- Media ---
+mutagen>=1.47.0
+
+# --- Teks ---
+pypinyin>=0.51.0
+lunar_python>=1.3.0
+
+# --- Clipboard & pintasan ---
+pyperclip>=1.8.2
+pynput>=1.7.6
+
+# ============================================================
+#  Dependensi khusus platform (dipilih otomatis oleh pip)
+# ============================================================
+
+# Windows
+comtypes>=1.4.0; sys_platform == "win32"
+pycaw>=20230407; sys_platform == "win32"
+pywin32>=306; sys_platform == "win32"
+
+# macOS
+applescript>=2021.2.9; sys_platform == "darwin"
+pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10.0; sys_platform == "darwin"
+
+# Linux (mode GPIO / Raspberry Pi)
+gpiozero>=2.0.1; sys_platform == "linux"
+lgpio>=0.2.2.0; sys_platform == "linux"
+
+# ============================================================
+#  OPSIONAL - tidak wajib untuk mode `web`
+# ============================================================
+# Antarmuka QML lama (mode `--mode gui`):
+#     PySide6>=6.6.0
+#     qasync>=0.27.1
+#
+# Jendela native tanpa bilah peramban (mode `web`):
+#     pywebview>=5.0
+#
+# Catatan Raspberry Pi (kamera CSI): JANGAN pasang picamera2 lewat pip.
+# Gunakan paket sistem:  sudo apt install python3-picamera2

@@ -1,0 +1,40 @@
+# ── Data lokal ───────────────────────────────────────────────
+/logs
+/config
+cache/
+
+# ── Lingkungan Python ────────────────────────────────────────
+.venv
+venv/
+**/__pycache__/
+*.py[cod]
+
+# ── Antarmuka web (webui/) ───────────────────────────────────
+# node_modules dan hasil build tidak masuk repositori; bangun dengan
+#   cd webui && npm install && npm run build
+webui/node_modules/
+webui/dist/
+
+# ── Biner yang disuntikkan saat CI ───────────────────────────
+libs/ffmpeg/
+
+# ── Hasil build / paket ──────────────────────────────────────
+/build
+/dist
+/installer
+*.spec
+.unifypy
+
+# ── IDE & sistem ─────────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.DS_Store
+
+# ── Catatan lokal ────────────────────────────────────────────
+/impl.md
+reports/
+.claude/settings.local.json

@@ -1,0 +1,229 @@
+/**
+ * Kerangka utama antarmuka SELA AI.
+ *
+ * Menyatukan avatar 3D, panel percakapan, menu, pengaturan, dan bantuan.
+ * Tata letak menyesuaikan diri:
+ *   - Layar potret (kios Raspberry Pi): avatar penuh, panel chat menjadi
+ *     lembaran bawah yang bisa dibuka/tutup.
+ *   - Layar desktop: avatar di tengah, panel chat mengambang di kanan.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Navbar from './components/Navbar'
+import Avatar3D from './components/Avatar3D'
+import ChatPanel from './components/ChatPanel'
+import VoiceControls from './components/VoiceControls'
+import HamburgerMenu from './components/HamburgerMenu'
+import Settings from './components/Settings'
+import Help from './components/Help'
+import useSelaBridge from './lib/useSelaBridge'
+
+let urutSesi = 0
+const idSesi = () => `s${Date.now().toString(36)}${(urutSesi++).toString(36)}`
+
+const KUNCI_TEMA = 'sela-tema'
+
+// Halaman yang boleh dibuka langsung lewat URL, mis. ?halaman=pengaturan.
+// Berguna untuk kios: petugas bisa membuka halaman setelan tanpa mengklik menu,
+// dan memudahkan pengujian otomatis tiap halaman.
+const HALAMAN_SAH = new Set(['beranda', 'pengaturan', 'bantuan'])
+
+function halamanAwal() {
+  if (typeof window === 'undefined') return 'beranda'
+  const param = new URLSearchParams(window.location.search).get('halaman')
+  return param && HALAMAN_SAH.has(param) ? param : 'beranda'
+}
+
+function temaAwal() {
+  try {
+    const tersimpan = localStorage.getItem(KUNCI_TEMA)
+    if (tersimpan) return tersimpan
+  } catch (_) {
+    // diabaikan
+  }
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+  return 'light'
+}
+
+export default function App() {
+  const {
+    terhubung,
+    stateAvatar,
+    emosi,
+    barisMusik,
+    pesan,
+    lip,
+    aksi,
+  } = useSelaBridge()
+
+  const [menuTerbuka, setMenuTerbuka] = useState(false)
+  const [halaman, setHalaman] = useState(halamanAwal)
+  const [arsip, setArsip] = useState([])
+  const [sesiAktif, setSesiAktif] = useState('live')
+  const [panelTerbuka, setPanelTerbuka] = useState(
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+  )
+  const [tema, setTema] = useState(temaAwal)
+
+  useEffect(() => {
+    if (tema === 'dark') document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
+    try {
+      localStorage.setItem(KUNCI_TEMA, tema)
+    } catch (_) {
+      // diabaikan
+    }
+  }, [tema])
+
+  // Jaga URL tetap sinkron dengan halaman aktif (tanpa memuat ulang).
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return
+    const url = new URL(window.location.href)
+    if (halaman === 'beranda') url.searchParams.delete('halaman')
+    else url.searchParams.set('halaman', halaman)
+    window.history.replaceState(null, '', url.toString())
+  }, [halaman])
+
+  // Pesan yang ditampilkan: percakapan berjalan atau sesi arsip yang dipilih.
+  const pesanTampil = useMemo(() => {
+    if (sesiAktif === 'live') return pesan
+    const s = arsip.find((x) => x.id === sesiAktif)
+    return s ? s.pesan : pesan
+  }, [sesiAktif, arsip, pesan])
+
+  const sesiBaru = useCallback(() => {
+    setArsip((lama) => {
+      if (pesan.length === 0) return lama
+      const pertama = pesan.find((p) => p.peran === 'user')
+      const judul = (pertama?.teks || 'Percakapan').slice(0, 40)
+      return [{ id: idSesi(), judul, pesan }, ...lama].slice(0, 30)
+    })
+    aksi.bersihkanPercakapan()
+    setSesiAktif('live')
+    setMenuTerbuka(false)
+    setHalaman('beranda')
+  }, [pesan, aksi])
+
+  const kirimPesan = useCallback(
+    (teks) => {
+      if (!teks?.trim()) return
+      if (sesiAktif !== 'live') {
+        // Mulai percakapan baru bila sedang melihat arsip.
+        setSesiAktif('live')
+        aksi.bersihkanPercakapan()
+      }
+      aksi.kirimTeks(teks.trim())
+    },
+    [aksi, sesiAktif],
+  )
+
+  const pilihSesi = useCallback((id) => {
+    setSesiAktif(id)
+    setMenuTerbuka(false)
+    setHalaman('beranda')
+    setPanelTerbuka(true)
+  }, [])
+
+  const hapusSesi = useCallback(
+    (id) => {
+      setArsip((lama) => lama.filter((s) => s.id !== id))
+      setSesiAktif((kini) => (kini === id ? 'live' : kini))
+    },
+    [],
+  )
+
+  // Escape menutup menu / kembali ke beranda.
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key !== 'Escape') return
+      if (menuTerbuka) setMenuTerbuka(false)
+      else if (halaman !== 'beranda') setHalaman('beranda')
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [menuTerbuka, halaman])
+
+  return (
+    <div className="fixed inset-0 flex flex-col overflow-hidden">
+      {/* Latar gradien bergerak */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-[#f8faff] dark:bg-slate-950 transition-colors duration-500">
+        <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-200/40 dark:bg-blue-900/20 blur-[120px] animate-float-1" />
+        <div className="absolute top-[20%] -right-[10%] w-[45%] h-[45%] rounded-full bg-indigo-200/30 dark:bg-indigo-900/15 blur-[120px] animate-float-2" />
+        <div className="absolute -bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-sky-100/50 dark:bg-blue-800/20 blur-[120px] animate-float-3" />
+      </div>
+
+      {halaman === 'beranda' ? (
+        <>
+          <Navbar
+            onMenuClick={() => setMenuTerbuka(true)}
+            theme={tema}
+            setTheme={setTema}
+            terhubung={terhubung}
+          />
+
+          <main className="flex-1 relative flex flex-col overflow-hidden min-h-0">
+            {/* Avatar 3D sebagai latar penuh */}
+            <div className="absolute inset-0 pointer-events-none z-0">
+              <div className="pointer-events-auto w-full h-full">
+                <Avatar3D state={stateAvatar} theme={tema} lip={lip} gerakan={null} />
+              </div>
+            </div>
+
+            {/* Panel percakapan */}
+            <ChatPanel
+              pesan={pesanTampil}
+              onKirim={kirimPesan}
+              onRekam={aksi.rekamToggle}
+              onSesiBaru={sesiBaru}
+              onTutup={(tutup) => setPanelTerbuka(!tutup)}
+              terbuka={panelTerbuka}
+              stateAvatar={stateAvatar}
+              barisMusik={barisMusik}
+              terhubung={terhubung}
+            />
+
+            {/* Tombol suara + status */}
+            <VoiceControls
+              stateAvatar={stateAvatar}
+              onRekam={aksi.rekamToggle}
+              terhubung={terhubung}
+              terbuka={panelTerbuka}
+            />
+          </main>
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          {halaman === 'pengaturan' && (
+            <Settings
+              onBack={() => setHalaman('beranda')}
+              theme={tema}
+              setTheme={setTema}
+              terhubung={terhubung}
+            />
+          )}
+          {halaman === 'bantuan' && <Help onBack={() => setHalaman('beranda')} />}
+        </div>
+      )}
+
+      <HamburgerMenu
+        isOpen={menuTerbuka}
+        onClose={() => setMenuTerbuka(false)}
+        sesi={arsip}
+        sesiAktif={sesiAktif}
+        onSesiBaru={sesiBaru}
+        onPilihSesi={pilihSesi}
+        onHapusSesi={hapusSesi}
+        onOpenSettings={() => {
+          setMenuTerbuka(false)
+          setHalaman('pengaturan')
+        }}
+        onOpenHelp={() => {
+          setMenuTerbuka(false)
+          setHalaman('bantuan')
+        }}
+      />
+    </div>
+  )
+}

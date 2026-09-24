@@ -1,0 +1,118 @@
+SELA AI — PEMBERITAHUAN KOMPONEN PIHAK KETIGA
+=============================================
+
+SELA AI adalah perangkat lunak kepemilikan (proprietary) milik
+Universitas Catur Insan Cendekia (UCIC). Lihat berkas LICENSE.
+
+Perangkat Lunak ini memuat dan/atau dibangun di atas komponen pihak ketiga
+berikut. Setiap komponen tetap tunduk pada lisensi aslinya masing-masing,
+dan lisensi tersebut tidak dibatalkan oleh lisensi SELA AI.
+
+
+A. MESIN AI DAN AUDIO
+---------------------
+
+1. py-xiaozhi
+   Sumber   : https://github.com/huangjunsen0406/py-xiaozhi
+   Lisensi  : MIT License
+   Peran    : Mesin AI inti — protokol WebSocket/MQTT, codec audio Opus,
+              pemrosesan suara, kata bangun, MCP, dan alur aktivasi perangkat.
+
+2. sherpa-onnx
+   Sumber   : https://github.com/k2-fsa/sherpa-onnx
+   Lisensi  : Apache License 2.0
+   Peran    : Pengenalan suara (ASR) dan deteksi kata bangun (KWS) offline.
+
+3. Opus (libopus)
+   Sumber   : https://opus-codec.org/
+   Lisensi  : BSD 3-Clause License
+   Peran    : Codec audio yang dipakai protokol xiaozhi.
+   Catatan  : Salinan biner disertakan di `libs/libopus/`.
+
+4. WebRTC Audio Processing Module (webrtc_apm)
+   Sumber   : https://webrtc.googlesource.com/src/
+   Lisensi  : BSD 3-Clause License
+   Peran    : Pembatalan gema (AEC) dan prapemrosesan audio.
+   Catatan  : Salinan biner disertakan di `libs/webrtc_apm/`.
+
+5. PortAudio (via sounddevice)
+   Sumber   : http://www.portaudio.com/
+   Lisensi  : MIT License
+   Peran    : Akses perangkat audio lintas platform.
+
+
+B. ANTARMUKA WEB
+----------------
+
+6. React, React DOM
+   Lisensi  : MIT License
+
+7. Three.js, @react-three/fiber, @react-three/drei
+   Lisensi  : MIT License
+   Peran    : Render avatar 3D dan animasi lipsync.
+
+8. Vite, Tailwind CSS, PostCSS, Autoprefixer
+   Lisensi  : MIT License
+   Peran    : Pembangunan dan penataan gaya antarmuka.
+
+9. qrcode
+   Lisensi  : MIT License
+
+10. Inter (jenis huruf)
+    Sumber  : Google Fonts
+    Lisensi : SIL Open Font License 1.1
+
+
+C. MODEL AI
+-----------
+
+11. Qwen (model bahasa besar)
+    Sumber  : https://github.com/QwenLM/Qwen
+    Lisensi : Apache License 2.0
+    Catatan : Berkas model GGUF diunduh terpisah, tidak disertakan dalam repo.
+
+12. Supertonic (model sintesis suara)
+    Sumber  : https://huggingface.co/Supertone/supertonic-3
+    Lisensi : Sesuai ketentuan pemilik model
+    Catatan : Berkas model diunduh terpisah, tidak disertakan dalam repo.
+
+13. sherpa-onnx streaming zipformer (model ASR)
+    Sumber  : https://huggingface.co/csukuangfj
+    Lisensi : Apache License 2.0
+
+14. multilingual-e5-small (model embedding RAG)
+    Sumber  : https://huggingface.co/intfloat/multilingual-e5-small
+    Lisensi : MIT License
+
+
+D. ALAT PAKET
+-------------
+
+15. PyInstaller       — GPL 2.0 dengan pengecualian bootloader
+16. unifypy           — MIT License
+17. Inno Setup        — Inno Setup License (Windows)
+18. dpkg / fakeroot   — GPL (Linux)
+19. hdiutil           — Perangkat sistem macOS
+
+
+E. DATA
+-------
+
+20. Basis pengetahuan kampus UCIC
+    Pemilik : Universitas Catur Insan Cendekia (UCIC)
+    Lisensi : Kepemilikan UCIC. Disertakan di `src/data/ucic_dataset.json`.
+    Catatan : Dokumen resmi kampus; tidak untuk didistribusikan ulang tanpa izin.
+
+21. Model 3D avatar SELA
+    Pemilik : Universitas Catur Insan Cendekia (UCIC)
+    Berkas  : `webui/public/models/sela.glb`
+    Lisensi : Kepemilikan UCIC.
+
+22. Rekaman suara kode aktivasi
+    Pemilik : Universitas Catur Insan Cendekia (UCIC)
+    Berkas  : `assets/sounds/id-ID/` (activation.wav + 0.wav..9.wav)
+    Lisensi : Kepemilikan UCIC.
+
+
+Jika Anda menemukan ketidaksesuaian atribusi, mohon hubungi pemegang hak
+agar dapat segera diperbaiki.
