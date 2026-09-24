@@ -76,6 +76,40 @@ scripts\build_windows.bat
 - Membuat ikon desktop dan entri Start Menu.
 - Sudah menyertakan uninstaller (muncul di *Apps & features*).
 
+### Icon aplikasi dan installer
+
+Icon aplikasi diambil dari `assets/icon.png` (rujukan `icon` di `build.json`).
+
+**Installer tidak otomatis memakai icon yang sama.** Template `.iss` milik
+unifypy memuat `SetupIconFile={{SETUP_ICON}}` di dalam blok bersyarat, sehingga
+baris itu hanya muncul bila `setup_icon` diisi. Tanpa itu installer memakai
+icon bawaan Inno Setup. Karena itu `build.json` memuat:
+
+```json
+"windows": {
+  "inno_setup": {
+    "setup_icon": "assets/icon.ico",
+    "license_file": "LICENSE"
+  }
+}
+```
+
+`license_file` menampilkan perjanjian lisensi pada layar pemasangan.
+
+**Cara memverifikasi icon benar-benar tertanam** (jangan hanya melihat nama
+berkas): ekstrak icon dari hasil build lalu bandingkan dengan sumbernya.
+
+```python
+import win32gui, win32ui, win32con
+besar, kecil = win32gui.ExtractIconEx(r"installer\sela-ai-1.0.2-x86_64.exe", 0)
+# ... gambar ke bitmap, lalu bandingkan piksel dengan assets/icon.png
+```
+
+Hasil pada rilis 1.0.2: `dist/sela-ai/sela-ai.exe` dan
+`installer/sela-ai-1.0.2-x86_64.exe` sama-sama **85,7% mirip** dengan
+`assets/icon.png` (selisihnya dari pembulatan PNG → ICO → ekstraksi), sedangkan
+installer 1.0.0 hanya 25,7% (icon bawaan Inno Setup).
+
 ### Alternatif tanpa instalasi (portable)
 
 Folder `dist\sela-ai\` bersifat **mandiri** — seluruh isi aplikasi ada di dalam
