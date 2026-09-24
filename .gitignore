@@ -38,3 +38,6 @@ libs/ffmpeg/
 /impl.md
 reports/
 .claude/settings.local.json
+
+# Situs dokumentasi hasil build
+/_site

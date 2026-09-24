@@ -1,0 +1,77 @@
+# Membangun dan mempublikasikan situs dokumentasi SELA AI ke GitHub Pages.
+#
+# Situs dibangun dari berkas Markdown di folder docs/ (Bahasa Indonesia)
+# memakai scripts/bangun_dokumentasi.py - tanpa Node.js dan tanpa generator
+# situs pihak ketiga.
+#
+# Catatan: workflow lama (vitepress.yml) membangun dokumentasi Mandarin di
+# folder documents/ dan memerlukan rahasia ACCESS_TOKEN; workflow ini
+# menggantikannya dan hanya memakai aksi resmi GitHub.
+name: Deploy Dokumentasi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "LICENSE"
+      - "NOTICE"
+      - "scripts/bangun_dokumentasi.py"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  bangun:
+    name: Bangun situs dokumentasi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Siapkan Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pasang dependensi
+        run: pip install markdown
+
+      - name: Bangun situs
+        run: python scripts/bangun_dokumentasi.py --keluaran _site
+
+      - name: Periksa hasil
+        run: |
+          test -f _site/index.html || { echo "::error::_site/index.html tidak terbentuk"; exit 1; }
+          echo "Halaman yang dihasilkan:"
+          find _site -maxdepth 1 -name '*.html' | sort
+          du -sh _site
+
+      - name: Siapkan Pages
+        uses: actions/configure-pages@v5
+
+      - name: Unggah artefak
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  terbitkan:
+    name: Terbitkan ke GitHub Pages
+    needs: bangun
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy ke Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
