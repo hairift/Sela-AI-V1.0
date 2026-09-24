@@ -65,6 +65,10 @@ class Events:
     UI_QUIT_REQUEST = "ui_quit_request"  # 退出
     UI_OPEN_SETTINGS = "ui_open_settings"  # 打开设置
     UI_TOGGLE_WINDOW = "ui_toggle_window"  # 显隐主窗口（GUI）
+    # Minta protokol tersambung tanpa membuka mikrofon. Dipakai antarmuka web
+    # agar status langsung "Terhubung" saat aplikasi dibuka, bukan menunggu
+    # pengguna menekan tombol mikrofon lebih dulu.
+    UI_AUTO_CONNECT = "ui_auto_connect"
 
     # 配置变更事件
     CONFIG_CHANGED = "config_changed"  # 配置已变更（需要热重载）

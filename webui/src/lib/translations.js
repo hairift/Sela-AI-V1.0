@@ -58,8 +58,10 @@ export const t = {
     listeningHint: 'Mendengarkan... (Bicara atau Klik untuk Kirim)',
     speakingHint: 'SELA Sedang Bicara (Klik untuk Potong)',
     processingHint: 'Sedang Memproses Ucapan...',
-    connectingEngine: 'Menghubungkan ke mesin AI...',
-    engineOffline: 'Mesin AI belum tersambung. Pastikan aplikasi SELA sedang berjalan.',
+    connectingEngine: 'Menyambungkan ke mesin AI...',
+    engineOffline: 'Mesin AI belum tersambung. Coba lagi sebentar lagi.',
+    appOffline:
+      'Aplikasi SELA belum berjalan. Jalankan aplikasi, lalu muat ulang halaman ini.',
 
     // Tombol aksi
     startListening: 'Mulai bicara',

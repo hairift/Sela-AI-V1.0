@@ -109,6 +109,19 @@ class SelaWebServer:
         await self._runner.setup()
         self._site = web.TCPSite(self._runner, self._host, self._port)
         await self._site.start()
+
+        # Bila port diminta 0, sistem operasi memilih port bebas. Ambil port
+        # NYATA dari soket agar self.url tidak menghasilkan "http://...:0/"
+        # yang tidak bisa dibuka peramban.
+        try:
+            soket = self._site._server.sockets[0]  # type: ignore[union-attr]
+            port_nyata = int(soket.getsockname()[1])
+            if port_nyata and port_nyata != self._port:
+                logger.info(f"SelaWebServer: port {self._port} -> {port_nyata}")
+                self._port = port_nyata
+        except Exception as e:
+            logger.debug(f"SelaWebServer: tidak bisa membaca port nyata: {e}")
+
         logger.info(f"SelaWebServer: aktif di {self.url}")
 
     async def stop(self) -> None:

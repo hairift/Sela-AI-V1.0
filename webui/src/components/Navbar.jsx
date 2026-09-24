@@ -17,32 +17,60 @@ const IconMoon = () => (
   </svg>
 )
 
-function BadgeKoneksi({ terhubung }) {
+function BadgeKoneksi({ terhubung, aiTerhubung }) {
+  // Tiga keadaan, supaya pengguna tahu bedanya "aplikasi belum jalan" dengan
+  // "aplikasi jalan tapi sambungan ke mesin AI belum siap".
+  const keadaan = !terhubung ? 'mati' : aiTerhubung ? 'siap' : 'menyambung'
+  const gaya = {
+    siap: {
+      judul: 'Mesin AI tersambung',
+      kotak:
+        'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-600',
+      titik: 'bg-emerald-500 animate-pulse',
+      teks: 'text-emerald-700 dark:text-emerald-300',
+      label: 'Siap',
+    },
+    menyambung: {
+      judul: 'Menyambungkan ke mesin AI...',
+      kotak:
+        'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-600',
+      titik: 'bg-amber-500 animate-pulse',
+      teks: 'text-amber-700 dark:text-amber-300',
+      label: 'Menyambung',
+    },
+    mati: {
+      judul: 'Aplikasi SELA belum berjalan',
+      kotak:
+        'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-600',
+      titik: 'bg-rose-500',
+      teks: 'text-rose-700 dark:text-rose-300',
+      label: 'Aplikasi mati',
+    },
+  }[keadaan]
+
   return (
     <div
       id="status-koneksi-badge"
-      title={terhubung ? 'Mesin AI tersambung' : 'Mesin AI belum tersambung'}
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
-        terhubung
-          ? 'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-600'
-          : 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-600'
-      }`}
+      title={gaya.judul}
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${gaya.kotak}`}
     >
-      <span className={`w-2 h-2 rounded-full ${terhubung ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+      <span className={`w-2 h-2 rounded-full ${gaya.titik}`} />
       <span
-        className={`text-[9px] font-bold uppercase tracking-wide hidden sm:inline ${
-          terhubung
-            ? 'text-emerald-700 dark:text-emerald-300'
-            : 'text-amber-700 dark:text-amber-300'
-        }`}
+        className={`text-[9px] font-bold uppercase tracking-wide hidden sm:inline ${gaya.teks}`}
       >
-        {terhubung ? 'Siap' : 'Offline'}
+        {gaya.label}
       </span>
     </div>
   )
 }
 
-export default function Navbar({ onMenuClick, theme, setTheme, terhubung = false }) {
+export default function Navbar({
+  onMenuClick,
+  theme,
+  setTheme,
+  terhubung = false,
+  aiTerhubung = false,
+}) {
   const toggleTheme = () => setTheme?.(theme === 'light' ? 'dark' : 'light')
 
   return (
@@ -63,7 +91,7 @@ export default function Navbar({ onMenuClick, theme, setTheme, terhubung = false
       </h1>
 
       <div className="flex items-center gap-2">
-        <BadgeKoneksi terhubung={terhubung} />
+        <BadgeKoneksi terhubung={terhubung} aiTerhubung={aiTerhubung} />
 
         <button
           onClick={toggleTheme}

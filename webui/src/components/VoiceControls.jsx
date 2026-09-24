@@ -31,10 +31,12 @@ export default function VoiceControls({
   stateAvatar = 'idle',
   onRekam,
   terhubung = false,
+  aiTerhubung = false,
   terbuka = true,
 }) {
   const label = () => {
-    if (!terhubung) return t.id.connectingEngine
+    if (!terhubung) return t.id.appOffline
+    if (!aiTerhubung) return t.id.connectingEngine
     if (stateAvatar === 'listening') return t.id.listeningHint
     if (stateAvatar === 'speaking') return t.id.speakingHint
     if (stateAvatar === 'thinking') return t.id.processingHint
@@ -42,7 +44,8 @@ export default function VoiceControls({
   }
 
   const status = () => {
-    if (!terhubung) return t.id.engineOffline
+    if (!terhubung) return t.id.appOffline
+    if (!aiTerhubung) return t.id.connectingEngine
     if (stateAvatar === 'listening') return t.id.listening
     if (stateAvatar === 'speaking') return t.id.speaking
     if (stateAvatar === 'thinking') return t.id.thinking
@@ -56,7 +59,7 @@ export default function VoiceControls({
         ? 'bg-amber-500 shadow-amber-500/50 animate-pulse ring-8 ring-amber-400/30 text-white'
         : stateAvatar === 'thinking'
           ? 'bg-indigo-600 shadow-indigo-500/50 ring-4 ring-indigo-300/30 text-white'
-          : !terhubung
+          : !terhubung || !aiTerhubung
             ? 'bg-slate-400 shadow-slate-500/30 ring-4 ring-slate-300/40 text-white cursor-not-allowed'
             : 'bg-blue-600 shadow-xl shadow-blue-600/30 hover:bg-blue-700 hover:scale-105 ring-4 ring-blue-200/60 dark:ring-blue-900/40 text-white'
 

@@ -23,7 +23,11 @@ const PETA_STATE = {
 
 export default function useSelaBridge() {
   const [terhubung, setTerhubung] = useState(false)
-  const [statusTeks, setStatusTeks] = useState('Menghubungkan ke mesin AI...')
+  // Terhubung ke mesin AI (protokol ke layanan SELA), terpisah dari
+  // terhubung ke server lokal aplikasi. Keduanya perlu dibedakan supaya
+  // pesan ke pengguna tidak menyesatkan.
+  const [aiTerhubung, setAiTerhubung] = useState(false)
+  const [statusTeks, setStatusTeks] = useState('Menghubungkan...')
   const [emosi, setEmosi] = useState('neutral')
   const [stateAvatar, setStateAvatar] = useState('idle')
   const [modeOtomatis, setModeOtomatis] = useState(false)
@@ -52,6 +56,7 @@ export default function useSelaBridge() {
     (data) => {
       switch (data.t) {
         case 'snapshot':
+          if (typeof data.connected === 'boolean') setAiTerhubung(data.connected)
           if (data.status) setStatusTeks(data.status)
           if (data.emotion) setEmosi(data.emotion)
           if (data.deviceState) setStateAvatar(PETA_STATE[data.deviceState] || 'idle')
@@ -77,6 +82,7 @@ export default function useSelaBridge() {
           break
 
         case 'status':
+          if (typeof data.connected === 'boolean') setAiTerhubung(data.connected)
           if (data.status) setStatusTeks(data.status)
           break
 
@@ -121,9 +127,14 @@ export default function useSelaBridge() {
       onConnectionChange: (ok) => {
         setTerhubung(ok)
         setStatusTeks(
-          ok ? 'Siap mendengarkan' : 'Mesin AI belum tersambung. Pastikan aplikasi SELA sedang berjalan.',
+          ok
+            ? 'Siap'
+            : 'Aplikasi SELA belum berjalan. Jalankan aplikasi, lalu muat ulang halaman ini.',
         )
-        if (!ok) setStateAvatar('idle')
+        if (!ok) {
+          setAiTerhubung(false)
+          setStateAvatar('idle')
+        }
       },
     })
     bridgeRef.current = bridge
@@ -147,6 +158,7 @@ export default function useSelaBridge() {
 
   return {
     terhubung,
+    aiTerhubung,
     statusTeks,
     emosi,
     stateAvatar,

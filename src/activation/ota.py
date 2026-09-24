@@ -84,6 +84,10 @@ class OtaConfigClient:
                 return data
 
     def _build_ota_headers(self) -> Dict:
+        # Accept-Language menentukan bahasa balasan yang dipilih server AI.
+        # Sebelumnya dikunci "zh-CN", sehingga jawaban SELA cenderung berbahasa
+        # Mandarin. Sekarang mengikuti bahasa aplikasi (Indonesia).
+        bahasa = getattr(SystemConstants, "DEFAULT_LOCALE", "id-ID")
         headers = {
             "Device-Id": self._config.get_config("SYSTEM_OPTIONS.DEVICE_ID"),
             "Client-Id": self._config.get_config("SYSTEM_OPTIONS.CLIENT_ID"),
@@ -92,7 +96,7 @@ class OtaConfigClient:
                 f"{SystemConstants.BOARD_TYPE}/"
                 f"{SystemConstants.APP_NAME}-{SystemConstants.APP_VERSION}"
             ),
-            "Accept-Language": "zh-CN",
+            "Accept-Language": bahasa,
         }
         activation_version = self._config.get_config(
             "SYSTEM_OPTIONS.NETWORK.ACTIVATION_VERSION", "v1"

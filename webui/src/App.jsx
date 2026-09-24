@@ -50,6 +50,7 @@ function temaAwal() {
 export default function App() {
   const {
     terhubung,
+    aiTerhubung,
     stateAvatar,
     emosi,
     barisMusik,
@@ -161,6 +162,7 @@ export default function App() {
             theme={tema}
             setTheme={setTema}
             terhubung={terhubung}
+            aiTerhubung={aiTerhubung}
           />
 
           <main className="flex-1 relative flex flex-col overflow-hidden min-h-0">
@@ -189,6 +191,7 @@ export default function App() {
               stateAvatar={stateAvatar}
               onRekam={aksi.rekamToggle}
               terhubung={terhubung}
+              aiTerhubung={aiTerhubung}
               terbuka={panelTerbuka}
             />
           </main>

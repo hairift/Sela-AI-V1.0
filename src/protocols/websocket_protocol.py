@@ -37,11 +37,22 @@ class WebsocketProtocol(Protocol):
         device_id = self.config.get_config("SYSTEM_OPTIONS.DEVICE_ID")
         client_id = self.config.get_config("SYSTEM_OPTIONS.CLIENT_ID")
 
+        # Accept-Language memberi tahu server AI bahasa balasan yang diinginkan.
+        # Tanpa ini sebagian server memakai bahasa bawaannya (Mandarin),
+        # sehingga jawaban SELA tidak konsisten berbahasa Indonesia.
+        try:
+            from src.constants.system import SystemConstants
+
+            bahasa = getattr(SystemConstants, "DEFAULT_LOCALE", "id-ID")
+        except Exception:
+            bahasa = "id-ID"
+
         self.HEADERS = {
             "Authorization": f"Bearer {access_token}",
             "Protocol-Version": "1",
             "Device-Id": device_id,  # 获取设备MAC地址
             "Client-Id": client_id,
+            "Accept-Language": bahasa,
         }
 
     async def connect(self) -> bool:

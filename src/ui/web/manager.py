@@ -44,6 +44,8 @@ class WebViewManager(ViewPort):
         self._running = False
         self._auto_mode = False
         self._codec = None
+        # Tugas sambungan awal ke mesin AI (dibatalkan saat aplikasi ditutup).
+        self._connect_task: Optional[asyncio.Task] = None
 
         self.bridge = SelaBridge(event_bus, task_manager=task_manager)
         self.server = SelaWebServer(
@@ -71,17 +73,56 @@ class WebViewManager(ViewPort):
             await self.bridge.start()
             await self.server.start()
         except OSError as e:
-            # Port terpakai: coba sekali lagi dengan port acak.
-            logger.warning(f"WebViewManager: port {self.server.port} gagal ({e}); coba port lain")
-            self.server = SelaWebServer(
-                self.bridge,
-                port=0,
-                on_config_changed=self._on_config_changed_request,
+            # Port terpakai. Coba beberapa port berikutnya (bukan port 0, yang
+            # akan menghasilkan alamat tidak berguna seperti http://...:0/ dan
+            # membuat peramban menampilkan "situs tidak dapat diakses").
+            logger.warning(
+                f"WebViewManager: port {self.server.port} gagal ({e}); mencari port lain"
             )
-            await self.server.start()
+            port_awal = self.server.port or DEFAULT_PORT
+            terakhir: Optional[Exception] = None
+            for kandidat in range(port_awal + 1, port_awal + 11):
+                try:
+                    self.server = SelaWebServer(
+                        self.bridge,
+                        port=kandidat,
+                        on_config_changed=self._on_config_changed_request,
+                    )
+                    await self.server.start()
+                    logger.info(f"WebViewManager: memakai port alternatif {kandidat}")
+                    terakhir = None
+                    break
+                except OSError as e2:
+                    terakhir = e2
+                    continue
+            if terakhir is not None:
+                # Semua kandidat terpakai: serahkan ke sistem (port acak), dan
+                # SelaWebServer akan melaporkan port nyatanya.
+                logger.warning(
+                    f"WebViewManager: port {port_awal}-{port_awal + 10} terpakai semua; "
+                    "memakai port acak dari sistem"
+                )
+                self.server = SelaWebServer(
+                    self.bridge,
+                    port=0,
+                    on_config_changed=self._on_config_changed_request,
+                )
+                await self.server.start()
 
         url = self.server.url
         logger.info(f"WebViewManager: antarmuka siap di {url}")
+
+        # Sambungkan protokol lebih dulu agar indikator status tidak terus
+        # menampilkan "Menghubungkan ke mesin AI...". Dijalankan sebagai tugas
+        # latar belakang (EventBus.emit bersifat async) supaya pembukaan jendela
+        # tidak tertunda bila jaringan lambat.
+        try:
+            self._connect_task = asyncio.create_task(
+                self._bus.emit(Events.UI_AUTO_CONNECT),
+                name="web:auto-connect",
+            )
+        except Exception as e:
+            logger.debug(f"WebViewManager: gagal meminta sambungan awal: {e}")
 
         # Buka jendela di thread terpisah agar tidak memblokir loop asyncio.
         kiosk = os.environ.get("SELA_KIOSK") == "1"
@@ -105,6 +146,9 @@ class WebViewManager(ViewPort):
     async def close(self) -> None:
         logger.info("WebViewManager: menutup antarmuka web...")
         self._running = False
+        if self._connect_task is not None and not self._connect_task.done():
+            self._connect_task.cancel()
+            self._connect_task = None
         try:
             self._bus.off(Events.AUDIO_CODEC_CHANGED, self._on_codec_changed)
         except Exception:

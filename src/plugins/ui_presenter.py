@@ -110,3 +110,51 @@ class UiPresenter:
         elif msg_type == "llm":
             if emotion := message.get("emotion"):
                 self.set_emotion(emotion)
+        elif msg_type == "alert":
+            # Server mengirim peringatan (mis. pesan terlalu panjang, sesi belum
+            # siap, atau kesalahan lain). Sebelumnya pesan ini diabaikan
+            # sehingga pengguna hanya melihat "tidak ada jawaban" tanpa sebab.
+            pesan = (
+                message.get("message")
+                or message.get("text")
+                or message.get("reason")
+                or "Peringatan dari mesin AI"
+            )
+            logger.warning(f"Peringatan mesin AI: {pesan} | {message}")
+            ramah = _pesan_server_ke_indonesia(str(pesan))
+            try:
+                self.set_status(ramah, connected=False)
+            except Exception:
+                pass
+            try:
+                self.set_chat_text(f"⚠ {ramah}")
+            except Exception:
+                pass
+
+
+# Terjemahan pesan galat server AI yang paling sering muncul, supaya pengguna
+# mendapat penjelasan yang bisa ditindaklanjuti alih-alih teks Inggris mentah.
+_PESAN_SERVER = (
+    (
+        "detect is only for wake words",
+        "Pesan terlalu panjang untuk mesin AI. Coba tulis lebih singkat, "
+        "atau gunakan tombol mikrofon untuk berbicara.",
+    ),
+    (
+        "duplicate tool names",
+        "Terjadi bentrok nama alat internal. Silakan jalankan ulang aplikasi.",
+    ),
+    (
+        "session",
+        "Sesi dengan mesin AI terputus. Coba kirim ulang pesan Anda.",
+    ),
+)
+
+
+def _pesan_server_ke_indonesia(pesan: str) -> str:
+    """Ubah pesan galat server menjadi kalimat Indonesia yang jelas."""
+    teks = pesan.lower()
+    for pola, terjemahan in _PESAN_SERVER:
+        if pola in teks:
+            return terjemahan
+    return pesan

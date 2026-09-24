@@ -51,7 +51,30 @@ class SessionActions:
         bus.on(Events.UI_ABORT_REQUEST, self.abort)
         bus.on(Events.UI_SEND_TEXT, self.send_text_from_event)
         bus.on(Events.UI_QUIT_REQUEST, self.request_shutdown)
+        bus.on(Events.UI_AUTO_CONNECT, self.auto_connect)
         logger.info("SessionActions 已订阅 UI 用户操作事件")
+
+    async def auto_connect(self, _data=None) -> None:
+        """Sambungkan protokol tanpa membuka mikrofon.
+
+        Dipakai antarmuka web saat aplikasi dibuka, supaya indikator status
+        langsung menunjukkan "Terhubung" dan obrolan teks siap dipakai. Mikrofon
+        tetap baru dibuka ketika pengguna menekan tombol atau memanggil kata
+        bangun, sehingga perilaku asli py-xiaozhi tidak berubah.
+        """
+        try:
+            if self._ctx.is_listening() or self._ctx.is_speaking():
+                return
+            ok = await self._cmd.connect_protocol()
+            if ok:
+                logger.info("Sambungan awal ke mesin AI berhasil")
+            else:
+                logger.warning(
+                    "Sambungan awal ke mesin AI belum berhasil; "
+                    "akan dicoba lagi saat pengguna mulai berbicara"
+                )
+        except Exception as e:
+            logger.warning(f"Sambungan awal gagal: {e}")
 
     def on_device_state_changed(self, state) -> None:
         # 手动录音中途被拉出 listening，复位按钮
