@@ -24,6 +24,11 @@ requests>=2.31.0
 # sehingga fitur kamera/VL gagal di paket hasil build dengan
 # "No module named 'httpx'".
 httpx>=0.27.0
+# Jendela native tanpa bilah peramban untuk antarmuka SELA. Ditaruh di
+# dependensi utama supaya aplikasi hasil paket terasa seperti aplikasi
+# desktop, bukan membuka tab peramban. Bila backend tidak tersedia
+# (Linux tanpa GTK/Qt), launcher otomatis mundur ke Chromium/peramban.
+pywebview>=5.0
 
 # --- AI / ML ---
 openai>=1.0.0
@@ -89,8 +94,6 @@ lgpio>=0.2.2.0; sys_platform == "linux"
 #     PySide6>=6.6.0
 #     qasync>=0.27.1
 #
-# Jendela native tanpa bilah peramban (mode `web`):
-#     pywebview>=5.0
 #
 # Catatan Raspberry Pi (kamera CSI): JANGAN pasang picamera2 lewat pip.
 # Gunakan paket sistem:  sudo apt install python3-picamera2

@@ -22,6 +22,12 @@ dependencies = [
     "paho-mqtt>=2.1.0",
     "requests>=2.31.0",
     "httpx>=0.27.0",
+    # Jendela native tanpa bilah peramban untuk antarmuka SELA. Ditaruh di
+    # dependensi utama supaya aplikasi hasil paket benar-benar terasa seperti
+    # aplikasi desktop, bukan membuka tab peramban. Bila backend tidak
+    # tersedia (mis. Linux tanpa GTK/Qt), launcher otomatis mundur ke
+    # Chromium kiosk lalu peramban bawaan.
+    "pywebview>=5.0",
     # AI/ML
     "openai>=1.0.0",
     "sherpa-onnx>=1.12.26",

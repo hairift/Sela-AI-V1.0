@@ -36,8 +36,29 @@ export default function useSelaBridge() {
   const [pesan, setPesan] = useState([])
   const [lip, setLip] = useState({ v: 0, viseme: 'sil' })
   const [catatan, setCatatan] = useState(null)
+  // Benar saat pertanyaan sudah dikirim tetapi jawaban belum mulai.
+  // Dipakai untuk menampilkan animasi "Thinking" selagi mesin AI mencari
+  // jawaban (termasuk saat memanggil tool data kampus / pencarian web).
+  const [menungguJawaban, setMenungguJawaban] = useState(false)
 
   const bridgeRef = useRef(null)
+  const timerMenunggu = useRef(null)
+  // Menandai apakah mikrofon sedang merekam (klik pertama = mulai,
+  // klik kedua = berhenti dan kirim).
+  const merekamRef = useRef(false)
+
+  const tandaiMenunggu = useCallback(() => {
+    setMenungguJawaban(true)
+    clearTimeout(timerMenunggu.current)
+    // Jaring pengaman: jangan biarkan avatar "berpikir" selamanya bila
+    // jawaban tidak pernah datang (mis. jaringan terputus).
+    timerMenunggu.current = setTimeout(() => setMenungguJawaban(false), 20000)
+  }, [])
+
+  const selesaiMenunggu = useCallback(() => {
+    clearTimeout(timerMenunggu.current)
+    setMenungguJawaban(false)
+  }, [])
 
   const tambahPesan = useCallback((peran, teks) => {
     const bersih = String(teks || '').trim()
@@ -67,10 +88,12 @@ export default function useSelaBridge() {
 
         case 'state':
           setStateAvatar(PETA_STATE[data.state] || 'idle')
+          if (data.state === 'speaking') selesaiMenunggu()
           break
 
         case 'chat':
           tambahPesan(data.role === 'user' ? 'user' : 'assistant', data.text)
+          if (data.role !== 'user') selesaiMenunggu()
           break
 
         case 'user_text':
@@ -143,25 +166,43 @@ export default function useSelaBridge() {
 
   const aksi = useMemo(
     () => ({
-      kirimTeks: (teks) => bridgeRef.current?.sendText(teks),
-      rekamToggle: () => bridgeRef.current?.manualToggle(),
+      kirimTeks: (teks) => {
+        tandaiMenunggu()
+        bridgeRef.current?.sendText(teks)
+      },
+      rekamToggle: () => {
+        // Saat menghentikan rekaman, pertanyaan ikut terkirim -> mulai menunggu.
+        if (merekamRef.current) tandaiMenunggu()
+        merekamRef.current = !merekamRef.current
+        bridgeRef.current?.manualToggle()
+      },
       mulaiOtomatis: () => bridgeRef.current?.autoStart(),
       toggleMode: () => bridgeRef.current?.autoToggle(),
-      batalkan: () => bridgeRef.current?.abort(),
+      batalkan: () => {
+        selesaiMenunggu()
+        bridgeRef.current?.abort()
+      },
       bukaPengaturan: () => bridgeRef.current?.openSettings(),
       keluar: () => bridgeRef.current?.quit(),
       bersihkanPercakapan: () => setPesan([]),
       hapusPesan: (id) => setPesan((lama) => lama.filter((p) => p.id !== id)),
     }),
-    [],
+    [tandaiMenunggu, selesaiMenunggu],
   )
+
+  // State avatar yang ditampilkan: selagi menunggu jawaban, tampilkan
+  // "thinking" agar avatar bergerak dan tidak terlihat diam.
+  const stateTampil =
+    menungguJawaban && stateAvatar !== 'speaking' && stateAvatar !== 'listening'
+      ? 'thinking'
+      : stateAvatar
 
   return {
     terhubung,
     aiTerhubung,
     statusTeks,
     emosi,
-    stateAvatar,
+    stateAvatar: stateTampil,
     modeOtomatis,
     teksTombol,
     barisMusik,

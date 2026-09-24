@@ -32,12 +32,18 @@ export default function VoiceControls({
   onRekam,
   terhubung = false,
   aiTerhubung = false,
+  teksTombol = '',
   terbuka = true,
 }) {
+  // Python mengirim teks tombol "Kirim" saat mikrofon sedang merekam,
+  // dan "Tahan lalu bicara" saat tidak. Dipakai untuk memberi umpan balik
+  // yang jelas supaya pengguna tahu klik kedua berarti mengirim.
+  const sedangMerekam = stateAvatar === 'listening' || /^kirim$/i.test(teksTombol.trim())
+
   const label = () => {
     if (!terhubung) return t.id.appOffline
     if (!aiTerhubung) return t.id.connectingEngine
-    if (stateAvatar === 'listening') return t.id.listeningHint
+    if (sedangMerekam) return t.id.listeningHint
     if (stateAvatar === 'speaking') return t.id.speakingHint
     if (stateAvatar === 'thinking') return t.id.processingHint
     return t.id.clickToSpeak
@@ -46,14 +52,14 @@ export default function VoiceControls({
   const status = () => {
     if (!terhubung) return t.id.appOffline
     if (!aiTerhubung) return t.id.connectingEngine
-    if (stateAvatar === 'listening') return t.id.listening
+    if (sedangMerekam) return t.id.listening
     if (stateAvatar === 'speaking') return t.id.speaking
     if (stateAvatar === 'thinking') return t.id.thinking
     return t.id.readyToListen
   }
 
   const kelasTombol =
-    stateAvatar === 'listening'
+    sedangMerekam
       ? 'bg-red-500 shadow-red-500/50 animate-pulse ring-8 ring-red-400/30 text-white'
       : stateAvatar === 'speaking'
         ? 'bg-amber-500 shadow-amber-500/50 animate-pulse ring-8 ring-amber-400/30 text-white'

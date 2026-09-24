@@ -1044,12 +1044,12 @@ async def test_auto_session_button_start_stop():
 
     await session.auto_session_toggle()
     assert session.auto_session_active is True
-    assert vp.buttons[-1] == "停止对话"
+    assert vp.buttons[-1] == "Hentikan"
     assert starts
 
     await session.auto_session_toggle()
     assert session.auto_session_active is False
-    assert vp.buttons[-1] == "开始对话"
+    assert vp.buttons[-1] == "Mulai bicara"
     assert "stop" in stops
 
 

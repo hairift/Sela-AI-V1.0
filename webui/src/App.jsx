@@ -247,6 +247,7 @@ export default function App() {
               onRekam={aksi.rekamToggle}
               terhubung={terhubung}
               aiTerhubung={aiTerhubung}
+              teksTombol={teksTombol}
               terbuka={panelTerbuka}
             />
           </main>
