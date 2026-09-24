@@ -35,7 +35,10 @@ opencv-python-headless>=4.9.0
 pillow>=10.0.0
 
 # --- Kripto ---
-cryptography>=42.0.0
+# Dibatasi <45: versi 45+ tidak lagi menyediakan wheel untuk macOS Intel
+# (x86_64), sehingga harus dikompilasi dari sumber dan gagal di CI
+# (openssl-sys / maturin). Versi 42-44 punya wheel untuk semua platform.
+cryptography>=42.0.0,<45
 
 # --- Utilitas ---
 psutil>=5.9.0

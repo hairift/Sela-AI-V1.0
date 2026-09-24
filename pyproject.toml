@@ -30,7 +30,11 @@ dependencies = [
     "opencv-python-headless>=4.9.0",
     "pillow>=10.0.0",
     # Kripto
-    "cryptography>=42.0.0",
+    # Dibatasi <45: versi 45+ tidak lagi menyediakan wheel untuk macOS Intel
+    # (x86_64), sehingga pip/uv harus mengompilasi dari sumber dan gagal di
+    # runner CI (openssl-sys / maturin error). Versi 42-44 punya wheel siap
+    # pakai untuk semua platform yang kami dukung.
+    "cryptography>=42.0.0,<45",
     # Utilitas
     "psutil>=5.9.0",
     "pendulum>=3.0.0",
