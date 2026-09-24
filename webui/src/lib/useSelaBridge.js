@@ -141,7 +141,7 @@ export default function useSelaBridge() {
           break
       }
     },
-    [tambahPesan],
+    [tambahPesan, selesaiMenunggu],
   )
 
   useEffect(() => {

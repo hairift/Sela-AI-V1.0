@@ -221,22 +221,32 @@ async def jalankan(url_dasar: str) -> int:
                 sesi.galat.clear()
                 url = url_dasar.rstrip("/") + jalur
                 await sesi.kirim("Page.navigate", {"url": url})
-                await asyncio.sleep(6)
 
-                # Periksa isi benar-benar tergambar.
-                info = await sesi.evaluasi(
-                    """(() => {
-                      const akar = document.getElementById('root');
-                      return JSON.stringify({
-                        simpul: akar ? akar.querySelectorAll('*').length : 0,
-                        teks: (document.body.innerText || '').trim().length,
-                      });
-                    })()"""
-                )
-                try:
-                    d = json.loads(info)
-                except Exception:
-                    d = {"simpul": 0, "teks": 0}
+                # Tunggu isi benar-benar tergambar (bukan waktu tetap). Aplikasi
+                # hasil paket lebih lambat pada pemuatan pertama, sehingga jeda
+                # tetap pernah membuat halaman terlihat "kosong" padahal normal.
+                d = {"simpul": 0, "teks": 0}
+                for _ in range(30):
+                    await asyncio.sleep(1)
+                    info = await sesi.evaluasi(
+                        """(() => {
+                          const akar = document.getElementById('root');
+                          return JSON.stringify({
+                            simpul: akar ? akar.querySelectorAll('*').length : 0,
+                            teks: (document.body.innerText || '').trim().length,
+                          });
+                        })()"""
+                    )
+                    try:
+                        d = json.loads(info)
+                    except Exception:
+                        continue
+                    # Halaman siap bila sudah ada isi, ATAU sudah ada galat
+                    # yang perlu dilaporkan (tidak perlu menunggu lama).
+                    if d.get("simpul", 0) >= 10 and d.get("teks", 0) >= 20:
+                        break
+                    if any(berbahaya(g) for g in sesi.galat):
+                        break
 
                 penting = [g for g in sesi.galat if berbahaya(g)]
                 kosong = d.get("simpul", 0) < 10 or d.get("teks", 0) < 20

@@ -141,6 +141,18 @@ jobs:
           # pyinstaller 必须在 PATH 可发现（unifypy environment_check 查可执行文件）
           uv pip install --upgrade unifypy pyinstaller
 
+      - name: Lint antarmuka (tangkap variabel tak terdefinisi)
+        shell: bash
+        run: |
+          # Menangkap lebih awal kelas galat yang membuat halaman putih, mis.
+          # variabel dipakai di JSX tetapi tidak pernah didefinisikan
+          # (ReferenceError). ESLint gagal -> build digagalkan sebelum dikemas.
+          cd webui
+          npx --no-install eslint src/ || {
+            echo "::error::ESLint menemukan masalah pada antarmuka. Perbaiki dulu."
+            exit 1
+          }
+
       - name: Build web UI (antarmuka SELA)
         shell: bash
         run: |
