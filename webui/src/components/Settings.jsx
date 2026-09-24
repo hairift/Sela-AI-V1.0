@@ -59,11 +59,21 @@ function Sakelar({ aktif, onChange, disabled }) {
   )
 }
 
+// Kata bangun yang tersedia di models/en/keywords.txt. Model KWS berbasis BPE
+// sehingga kata apa pun bisa ditambahkan lewat tokennya.
+const KATA_BANGUN = ['SELA', 'Hai Hai']
+
+const PLATFORM_MUSIK = ['kw', 'kg', 'tx', 'wy', 'mg']
+const KUALITAS_MUSIK = ['128k', '192k', '320k', 'flac']
+
 export default function Settings({ onBack, theme, setTheme, terhubung = false }) {
   const [config, setConfig] = useState(null)
   const [perangkat, setPerangkat] = useState({ input: [], output: [] })
   const [galat, setGalat] = useState('')
   const [menyimpan, setMenyimpan] = useState(false)
+  // Alamat server disunting lokal dulu, baru dikirim saat tombol Simpan ditekan
+  // (supaya tidak menyimpan alamat setengah diketik).
+  const [alamatServer, setAlamatServer] = useState('')
 
   const muat = async () => {
     try {
@@ -73,8 +83,10 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
       ])
       const dCfg = await rCfg.json()
       const dDev = await rDev.json()
-      if (dCfg.ok) setConfig(dCfg.config)
-      else setGalat(dCfg.error || 'Gagal memuat pengaturan')
+      if (dCfg.ok) {
+        setConfig(dCfg.config)
+        setAlamatServer(dCfg.config?.serverUrl || '')
+      } else setGalat(dCfg.error || 'Gagal memuat pengaturan')
       if (dDev.ok) setPerangkat(dDev.devices)
     } catch (e) {
       setGalat('Tidak bisa menghubungi mesin AI. Pastikan aplikasi SELA sedang berjalan.')
@@ -160,6 +172,64 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
               onChange={(v) => simpan({ wakeWord: v })}
             />
           </Baris>
+          <Baris
+            label={t.id.wakeWordChoice}
+            keterangan={t.id.wakeWordChoiceDesc}
+          >
+            <select
+              value={config?.wakeWordText || 'SELA'}
+              disabled={!config}
+              onChange={(e) => simpan({ wakeWordText: e.target.value })}
+              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
+            >
+              {KATA_BANGUN.map((k) => (
+                <option key={k} value={k}>
+                  {k === 'SELA' ? 'SELA' : 'Hai Hai'}
+                </option>
+              ))}
+            </select>
+          </Baris>
+          <Baris
+            label={t.id.wakeWordSensitivity}
+            keterangan={t.id.wakeWordSensitivityDesc}
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0.05"
+                max="0.6"
+                step="0.05"
+                value={config?.wakeWordThreshold ?? 0.2}
+                disabled={!config}
+                onChange={(e) =>
+                  simpan({ wakeWordThreshold: Number(e.target.value) })
+                }
+                className="w-28 accent-blue-600"
+              />
+              <span className="text-xs font-mono text-gray-500 dark:text-gray-400 w-9 text-right">
+                {(config?.wakeWordThreshold ?? 0.2).toFixed(2)}
+              </span>
+            </div>
+          </Baris>
+          <Baris label={t.id.serverUrlLabel} keterangan={t.id.serverUrlDesc}>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={alamatServer}
+                disabled={!config}
+                onChange={(e) => setAlamatServer(e.target.value)}
+                placeholder="wss://..."
+                className="w-[190px] text-[11px] px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
+              />
+              <button
+                onClick={() => simpan({ serverUrl: alamatServer.trim() })}
+                disabled={!config || alamatServer.trim() === (config?.serverUrl || '')}
+                className="text-[11px] px-2 py-1.5 rounded-lg bg-blue-600 text-white font-semibold disabled:opacity-40"
+              >
+                {t.id.simpan}
+              </button>
+            </div>
+          </Baris>
           <Baris label={t.id.connectionStatus}>
             <span
               className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
@@ -170,13 +240,37 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
               {terhubung ? t.id.connected : t.id.disconnected}
             </span>
           </Baris>
-          {config?.serverUrl && (
-            <Baris label={t.id.engineAddress}>
-              <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[180px] block">
-                {config.serverUrl}
-              </span>
-            </Baris>
-          )}
+        </Kartu>
+
+        <Kartu judul={t.id.sectionMusic}>
+          <Baris label={t.id.musicPlatform}>
+            <select
+              value={config?.musicPlatform || 'kw'}
+              disabled={!config}
+              onChange={(e) => simpan({ musicPlatform: e.target.value })}
+              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
+            >
+              {PLATFORM_MUSIK.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </Baris>
+          <Baris label={t.id.musicQuality}>
+            <select
+              value={config?.musicQuality || '320k'}
+              disabled={!config}
+              onChange={(e) => simpan({ musicQuality: e.target.value })}
+              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
+            >
+              {KUALITAS_MUSIK.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </Baris>
         </Kartu>
 
         <Kartu judul={t.id.sectionAudio}>
@@ -233,6 +327,10 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
         {menyimpan && (
           <p className="text-center text-[11px] text-blue-500 font-medium">Menyimpan...</p>
         )}
+
+        <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+          {t.id.restartNote}
+        </p>
       </div>
     </div>
   )

@@ -176,6 +176,11 @@ class SelaWebServer:
         "aec": "AEC_OPTIONS.ENABLED",
         "inputDevice": "AUDIO_DEVICES.input_device_name",
         "outputDevice": "AUDIO_DEVICES.output_device_name",
+        "wakeWordText": "WAKE_WORD_OPTIONS.WAKE_WORD",
+        "wakeWordThreshold": "WAKE_WORD_OPTIONS.KEYWORDS_THRESHOLD",
+        "serverUrl": "SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL",
+        "musicPlatform": "MUSIC.DEFAULT_PLATFORM",
+        "musicQuality": "MUSIC.DEFAULT_QUALITY",
     }
 
     async def _config_get_handler(self, request: web.Request) -> web.StreamResponse:
@@ -187,6 +192,9 @@ class SelaWebServer:
             data = {
                 "wakeWord": bool(cfg.get_config("WAKE_WORD_OPTIONS.USE_WAKE_WORD", False)),
                 "wakeWordText": cfg.get_config("WAKE_WORD_OPTIONS.WAKE_WORD", "") or "",
+                "wakeWordThreshold": float(
+                    cfg.get_config("WAKE_WORD_OPTIONS.KEYWORDS_THRESHOLD", 0.2) or 0.2
+                ),
                 "aec": bool(cfg.get_config("AEC_OPTIONS.ENABLED", False)),
                 "inputDevice": cfg.get_config("AUDIO_DEVICES.input_device_name", "") or "",
                 "outputDevice": cfg.get_config("AUDIO_DEVICES.output_device_name", "") or "",
@@ -196,6 +204,8 @@ class SelaWebServer:
                 ),
                 "version": SystemConstants.APP_VERSION,
                 "appName": SystemConstants.APP_DISPLAY_NAME,
+                "musicPlatform": cfg.get_config("MUSIC.DEFAULT_PLATFORM", "kw") or "kw",
+                "musicQuality": cfg.get_config("MUSIC.DEFAULT_QUALITY", "320k") or "320k",
             }
             return web.json_response({"ok": True, "config": data})
         except Exception as e:

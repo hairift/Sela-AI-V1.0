@@ -85,6 +85,22 @@ export const t = {
     languageValue: 'Bahasa Indonesia',
     wakeWord: 'Kata Bangun (Wake Word)',
     wakeWordDesc: 'Asisten aktif otomatis saat mendengar kata bangun.',
+    wakeWordChoice: 'Pilihan Kata Bangun',
+    wakeWordChoiceDesc: 'Ucapkan salah satu untuk memulai tanpa menyentuh layar.',
+    wakeWordSensitivity: 'Sensitivitas Kata Bangun',
+    wakeWordSensitivityDesc:
+      'Makin kecil nilainya, makin mudah terpicu (juga makin mudah salah dengar).',
+    serverUrlLabel: 'Alamat Server AI',
+    serverUrlDesc:
+      'Ubah bila memakai server xiaozhi sendiri, agar jawaban memakai prompt kampus Anda.',
+    simpan: 'Simpan',
+    batal: 'Batal',
+    tersimpan: 'Tersimpan',
+    sectionMusic: 'Musik',
+    musicPlatform: 'Platform Pencarian Musik',
+    musicQuality: 'Kualitas Audio',
+    restartNote:
+      'Sebagian perubahan (kata bangun, perangkat audio) berlaku setelah aplikasi dijalankan ulang.',
     autoConversation: 'Percakapan Otomatis',
     autoConversationDesc: 'Mendengarkan dan menjawab tanpa menekan tombol.',
     voiceReply: 'Balasan Suara',
