@@ -173,6 +173,14 @@ class McpServer:
         except Exception as e:
             logger.error(f"Gagal memuat tool MCP 'cuaca': {e}", exc_info=True)
 
+        try:
+            from src.mcp.tools.websearch import register_websearch_tools
+
+            # Pencarian internet untuk berita, tokoh publik, cuaca, harga.
+            _pasang("pencarian-web", register_websearch_tools, self.add_tool)
+        except Exception as e:
+            logger.error(f"Gagal memuat tool MCP 'pencarian-web': {e}", exc_info=True)
+
         # 外挂：用户目录插件包（自带 lib/），失败隔离
         try:
             from src.mcp.plugins.loader import load_mcp_plugins_from_config

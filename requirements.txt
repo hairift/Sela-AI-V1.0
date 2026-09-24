@@ -46,6 +46,13 @@ platformdirs>=4.0.0
 # --- Media ---
 mutagen>=1.47.0
 
+# ============================================================
+#  OPSIONAL - memperkuat kualitas; tanpa ini aplikasi tetap jalan
+# ============================================================
+# Pencarian web. Tanpa paket ini, pencarian tetap berfungsi memakai
+# scraper HTML DuckDuckGo + Wikipedia + Wikidata via urllib.
+duckduckgo-search>=6.0.0
+
 # --- Teks ---
 pypinyin>=0.51.0
 lunar_python>=1.3.0
