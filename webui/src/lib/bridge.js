@@ -108,6 +108,9 @@ export function createSelaBridge({ onEvent, onConnectionChange } = {}) {
     buttonPress: () => kirimMentah({ t: 'button_press' }),
     buttonRelease: () => kirimMentah({ t: 'button_release' }),
     autoStart: () => kirimMentah({ t: 'auto_start' }),
+    siapSiaga: () => kirimMentah({ t: 'siap_siaga' }),
+    kendaliMusik: (jenis, nilai) =>
+      kirimMentah({ t: 'kendali_musik', jenis, nilai }),
     autoToggle: () => kirimMentah({ t: 'auto_toggle' }),
     abort: () => kirimMentah({ t: 'abort' }),
     openSettings: () => kirimMentah({ t: 'open_settings' }),

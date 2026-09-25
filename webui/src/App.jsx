@@ -86,6 +86,7 @@ export default function App() {
     emosi,
     teksTombol,
     barisMusik,
+    musik,
     pesan,
     lip,
     aksi,
@@ -192,6 +193,15 @@ export default function App() {
     [],
   )
 
+  // Setiap kali pengguna berpindah halaman, pastikan sambungan dan sesi
+  // dengar siap. Sebelumnya keluar dari Pengaturan kadang meninggalkan
+  // sambungan setengah siap sehingga SELA diam sampai aplikasi dijalankan
+  // ulang.
+  useEffect(() => {
+    const tunda = setTimeout(() => aksi.siapSiaga?.(), 300)
+    return () => clearTimeout(tunda)
+  }, [halaman, aksi])
+
   // Escape menutup menu / kembali ke beranda.
   useEffect(() => {
     const handler = (e) => {
@@ -240,6 +250,8 @@ export default function App() {
               terbuka={panelTerbuka}
               stateAvatar={stateAvatar}
               barisMusik={barisMusik}
+              musik={musik}
+              aksi={aksi}
               terhubung={terhubung}
             />
 

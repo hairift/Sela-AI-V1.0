@@ -83,9 +83,13 @@ class AudioDeviceManager:
             if not output_info:
                 raise RuntimeError("无法找到可用的输出设备")
 
-        # 3. 输入固定单声道（协议要求 + 避免阵列驱动延迟），输出保持设备声道数
+        # 3. 输入固定单声道（协议要求 + 避免阵列驱动延迟）
         input_channels = 1
-        output_channels = output_info["channels"]
+        # 输出最多双声道。Di Linux dengan PipeWire, perangkat "default"
+        # melaporkan puluhan channel (pernah terbaca 64ch); membuka stream
+        # selebar itu memboroskan CPU dan membuat pemutaran tersendat atau
+        # senyap. Suara asisten hanya perlu stereo.
+        output_channels = min(2, max(1, int(output_info["channels"] or 1)))
 
         device_input_sample_rate = input_info["sample_rate"]
         device_output_sample_rate = output_info["sample_rate"]

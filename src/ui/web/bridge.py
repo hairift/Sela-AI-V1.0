@@ -248,6 +248,19 @@ class SelaBridge:
             elif cmd == "abort":
                 await self._emit(Events.UI_ABORT_REQUEST)
 
+            elif cmd == "kendali_musik":
+                # Tombol pada pemutar musik di panel percakapan.
+                jenis = str(msg.get("jenis") or "")
+                nilai = msg.get("nilai")
+                await self._emit(
+                    Events.MUSIC_CONTROL_REQUEST, {"jenis": jenis, "nilai": nilai}
+                )
+
+            elif cmd == "siap_siaga":
+                # Dipancarkan setiap pengguna berpindah halaman agar
+                # sambungan dan sesi dengar selalu siap.
+                await self._emit(Events.UI_READY_REQUEST)
+
             elif cmd == "open_settings":
                 await self._emit(Events.UI_OPEN_SETTINGS)
 
@@ -317,8 +330,22 @@ class SelaBridge:
         try:
             state = getattr(data, "state", None)
             song = getattr(data, "song", "")
+            # Posisi dan durasi dikirim agar antarmuka bisa menampilkan bilah
+            # kemajuan dan tombol lompat/jeda/hentikan pada gelembung musik.
+            posisi = float(getattr(data, "position", 0) or 0)
+            durasi = float(getattr(data, "duration", 0) or 0)
+            asal_jeda = getattr(data, "pause_source", None)
             if state:
-                await self.broadcast({"t": "music", "state": state, "song": song})
+                await self.broadcast(
+                    {
+                        "t": "music",
+                        "state": state,
+                        "song": song,
+                        "position": round(posisi, 2),
+                        "duration": round(durasi, 2),
+                        "pauseSource": asal_jeda,
+                    }
+                )
         except Exception as e:
             logger.debug(f"SelaBridge: music state dilewati: {e}")
 

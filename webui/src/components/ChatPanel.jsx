@@ -57,6 +57,8 @@ export default function ChatPanel({
   stateAvatar = 'idle',
   barisMusik = '',
   terhubung = false,
+  musik = null,
+  aksi = null,
 }) {
   const [nilai, setNilai] = useState('')
   const [fokus, setFokus] = useState(false)
@@ -213,6 +215,7 @@ export default function ChatPanel({
             </div>
           )}
 
+          <PemutarMusik musik={musik} aksi={aksi} />
           {barisMusik && (
             <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 truncate shrink-0">{barisMusik}</p>
           )}

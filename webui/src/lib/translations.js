@@ -114,6 +114,16 @@ export const t = {
     // Catatan: nilai sebenarnya ada di sisi mesin AI, bukan di berkas ini.
     adminPasswordNote: 'Kata sandi diperiksa oleh mesin AI, bukan disimpan di antarmuka.',
 
+    // Pemutar musik
+    musicPlaying: 'Sedang diputar',
+    musicPaused: 'Dijeda',
+    musicPause: 'Jeda',
+    musicResume: 'Lanjutkan',
+    musicStop: 'Hentikan',
+    musicBack: 'Mundur 15 detik',
+    musicForward: 'Maju 15 detik',
+    musicWaiting: 'Sedang mencari musiknya...',
+
     // Uji mikrofon
     micTest: 'Uji Mikrofon',
     micTestDesc:

@@ -57,6 +57,7 @@ class SessionActions:
         bus.on(Events.UI_SEND_TEXT, self.send_text_from_event)
         bus.on(Events.UI_QUIT_REQUEST, self.request_shutdown)
         bus.on(Events.UI_AUTO_CONNECT, self.auto_connect)
+        bus.on(Events.UI_READY_REQUEST, self.siap_siaga)
         logger.info("SessionActions 已订阅 UI 用户操作事件")
 
     async def auto_connect(self, _data=None) -> None:
@@ -200,6 +201,27 @@ class SessionActions:
             self._manual_recording = False
         self._ui.set_auto_mode(self._auto_mode)
         logger.debug(f"模式切换: {'自动' if self._auto_mode else '手动'}")
+
+    async def siap_siaga(self, _data=None) -> None:
+        """Pastikan sambungan dan sesi dengar siap, tanpa menghentikan apa pun.
+
+        Dipanggil antarmuka setiap kali pengguna berpindah halaman (mis. keluar
+        dari Pengaturan). Sebelumnya, keluar dari Pengaturan kadang meninggalkan
+        sambungan dalam keadaan setengah siap sehingga SELA tidak menanggapi
+        sampai aplikasi dijalankan ulang. Handler ini bersifat idempoten:
+        memanggilnya berkali-kali aman dan tidak memutus percakapan yang sedang
+        berjalan.
+        """
+        try:
+            if self._ctx.is_speaking():
+                # Sedang menjawab; jangan diganggu.
+                return
+            await self._cmd.connect_protocol()
+            if not self._ctx.is_listening():
+                await self._ensure_listen_session()
+            logger.debug("Siap siaga: sambungan dan sesi dengar dipastikan aktif")
+        except Exception as e:
+            logger.warning(f"Siap siaga gagal: {e}")
 
     async def auto_session_toggle(self, _data=None) -> None:
         # 主按钮：开始对话 / 停止对话

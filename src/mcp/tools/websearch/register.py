@@ -7,7 +7,7 @@ from collections.abc import Callable
 from src.logging import get_logger
 from src.mcp.tooling import McpTool, Property, PropertyList, PropertyType
 
-from .service import cari_web, perlu_cari_web
+from .service import cari_berita, cari_web, perlu_cari_web
 
 logger = get_logger()
 
@@ -28,6 +28,22 @@ def register_websearch_tools(add_tool: Callable[[McpTool], None]) -> None:
             ),
             PropertyList([Property("kueri", PropertyType.STRING)]),
             cari_web,
+        ),
+        McpTool(
+            "cari_berita",
+            (
+                "Cari BERITA terkini dari internet. Panggil tool ini setiap kali "
+                "pengguna meminta berita atau kabar terbaru tentang suatu hal, "
+                "misalnya 'berita hari ini', 'kabar terbaru tentang ...', "
+                "'apa yang sedang terjadi di ...', atau 'peristiwa terkini'. "
+                "Hasilnya sudah berupa daftar berita beserta tanggal dan sumber; "
+                "sebutkan tanggalnya bila ada supaya tidak terdengar seperti "
+                "kejadian hari ini. Untuk pertanyaan yang BUKAN berita (profil "
+                "tokoh, cuaca, harga) gunakan cari_web. "
+                "Parameter: topik - topik berita yang dicari."
+            ),
+            PropertyList([Property("topik", PropertyType.STRING)]),
+            cari_berita,
         ),
     ]
 

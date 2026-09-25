@@ -349,3 +349,73 @@ def cari_web(args=None) -> str:
         "Sebutkan bahwa sumbernya dari internet bila relevan, dan jangan "
         "menambahkan fakta yang tidak tertulis di sini.\n\n" + "\n\n".join(bagian)
     )
+
+
+def cari_berita(args=None) -> str:
+    """Cari BERITA terkini lalu kembalikan ringkasannya untuk SELA.
+
+    Dipisah dari ``cari_web`` supaya model memilih jalur yang tepat saat
+    pengguna meminta berita. Setiap butir menyertakan tanggal bila tersedia,
+    agar SELA tidak menyampaikan berita lama seolah-olah baru.
+
+    Args:
+        args: Dict parameter dari McpServer, berisi ``topik``.
+
+    Returns:
+        Ringkasan berita siap dibacakan, atau pesan bila tidak ada hasil.
+    """
+    topik = _ambil_argumen(args, "topik") or _ambil_argumen(args, "kueri")
+    topik = (topik or "").strip()
+    if not topik:
+        return "Topik berita belum disebutkan."
+
+    kueri = topik if "berita" in topik.lower() else f"berita {topik} terbaru"
+
+    hasil: List[Dict[str, str]] = []
+    # Paket lama `duckduckgo_search` sudah tidak dirawat dan kini mengembalikan
+    # halaman depan situs berita, bukan berita yang dicari. Paket penggantinya
+    # adalah `ddgs`, jadi dicoba lebih dulu.
+    for modul in ("ddgs", "duckduckgo_search"):
+        try:
+            DDGS = __import__(modul).DDGS  # type: ignore[attr-defined]
+            with DDGS() as ddgs:
+                for item in ddgs.news(kueri, region="id-id", max_results=6):
+                    hasil.append(
+                        {
+                            "judul": item.get("title", ""),
+                            "url": item.get("url", "") or item.get("href", ""),
+                            "snippet": item.get("body", ""),
+                            "tanggal": item.get("date", ""),
+                            "sumber": item.get("source", ""),
+                        }
+                    )
+            if hasil:
+                break
+        except Exception as e:
+            logger.debug(f"Pencarian berita lewat {modul} tidak dipakai: {e}")
+
+    if not hasil:
+        hasil = cari_duckduckgo(kueri, maks=6)
+
+    if not hasil:
+        return f"Tidak ada berita yang ditemukan tentang {topik}."
+
+    baris = [f"Berita terkini tentang {topik}:"]
+    for i, h in enumerate(hasil[:5], 1):
+        bagian = [f"{i}. {h.get('judul', '').strip()}"]
+        if h.get("tanggal"):
+            bagian.append(f"   Tanggal: {h['tanggal']}")
+        if h.get("sumber"):
+            bagian.append(f"   Sumber: {h['sumber']}")
+        if h.get("snippet"):
+            bagian.append(f"   {h['snippet'].strip()[:260]}")
+        if h.get("url"):
+            bagian.append(f"   {h['url']}")
+        baris.append(chr(10).join(bagian))
+
+    baris.append(
+        chr(10)
+        + "Sampaikan hanya berita dari daftar di atas. Bila tanggalnya tertera, "
+        "sebutkan tanggalnya agar tidak terdengar seperti kejadian hari ini."
+    )
+    return (chr(10) + chr(10)).join(baris)

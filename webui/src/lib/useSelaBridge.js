@@ -12,6 +12,28 @@ import { createSelaBridge } from './bridge'
 let urutanId = 0
 const idBaru = () => `m${Date.now().toString(36)}${(urutanId++).toString(36)}`
 
+/**
+ * Gabungkan dua potongan jawaban AI menjadi satu teks yang enak dibaca.
+ *
+ * Mesin AI mengirim jawaban per kalimat. Penggabungan naif menghasilkan
+ * "Halo.Selamat datang" atau "Halo . Selamat". Fungsi ini menambahkan spasi
+ * hanya bila perlu, dan tidak menambahkan titik yang sudah ada.
+ */
+const gabungTeks = (lama, baru) => {
+  const a = String(lama || '').trimEnd()
+  const b = String(baru || '').trim()
+  if (!a) return b
+  if (!b) return a
+  // Potongan yang sudah termuat di akhir teks tidak perlu ditambah lagi.
+  if (a.endsWith(b)) return a
+  // Baris baru dipertahankan sebagai pemisah paragraf.
+  if (a.endsWith('\n') || b.startsWith('\n')) return `${a}${b}`
+  // Setelah tanda baca tidak perlu spasi; selain itu tambahkan spasi.
+  if (/[.!?,;:)\]}"'”’]$/.test(a)) return `${a} ${b}`
+  if (/^[.,;:)\]}]/.test(b)) return `${a}${b}`
+  return `${a} ${b}`
+}
+
 // Nama state dari Python (DeviceState) -> state avatar di antarmuka.
 const PETA_STATE = {
   idle: 'idle',
@@ -33,6 +55,13 @@ export default function useSelaBridge() {
   const [modeOtomatis, setModeOtomatis] = useState(false)
   const [teksTombol, setTeksTombol] = useState('')
   const [barisMusik, setBarisMusik] = useState('')
+  // Data pemutar musik: judul, status, posisi, dan durasi.
+  const [musik, setMusik] = useState({
+    song: '',
+    state: 'stopped',
+    position: 0,
+    duration: 0,
+  })
   const [pesan, setPesan] = useState([])
   const [lip, setLip] = useState({ v: 0, viseme: 'sil' })
   const [catatan, setCatatan] = useState(null)
@@ -60,16 +89,42 @@ export default function useSelaBridge() {
     setMenungguJawaban(false)
   }, [])
 
+  // Batas waktu penggabungan potongan jawaban AI menjadi satu gelembung.
+  // Mesin AI mengirim jawaban sepotong-sepotong (per kalimat); tanpa ini
+  // pengguna melihat banyak gelembung kecil yang beruntun.
+  const JEDA_GABUNG_MS = 8000
+  const waktuPesanTerakhir = useRef(0)
+
   const tambahPesan = useCallback((peran, teks) => {
     const bersih = String(teks || '').trim()
     if (!bersih) return
+    const sekarang = Date.now()
     setPesan((lama) => {
-      // Hindari duplikat beruntun (jalur tts dan presenter bisa mengirim sama).
       const terakhir = lama[lama.length - 1]
+
+      // Potongan jawaban AI digabung ke gelembung terakhir yang masih satu
+      // giliran bicara, sehingga tampil sebagai SATU jawaban utuh.
+      if (
+        peran === 'assistant' &&
+        terakhir &&
+        terakhir.peran === 'assistant' &&
+        sekarang - waktuPesanTerakhir.current < JEDA_GABUNG_MS
+      ) {
+        const gabung = gabungTeks(terakhir.teks, bersih)
+        if (gabung === terakhir.teks) return lama
+        const baru = lama.slice(0, -1)
+        baru.push({ ...terakhir, teks: gabung, waktu: sekarang })
+        waktuPesanTerakhir.current = sekarang
+        return baru
+      }
+
+      // Hindari duplikat beruntun (jalur tts dan presenter bisa mengirim sama).
       if (terakhir && terakhir.peran === peran && terakhir.teks === bersih) {
         return lama
       }
-      return [...lama, { id: idBaru(), peran, teks: bersih, waktu: Date.now() }]
+
+      waktuPesanTerakhir.current = sekarang
+      return [...lama, { id: idBaru(), peran, teks: bersih, waktu: sekarang }]
     })
   }, [])
 
@@ -117,6 +172,12 @@ export default function useSelaBridge() {
           break
 
         case 'music':
+          setMusik({
+            song: data.song || '',
+            state: data.state || 'stopped',
+            position: Number(data.position) || 0,
+            duration: Number(data.duration) || 0,
+          })
           if (data.song) setBarisMusik(`Musik: ${data.song}`)
           break
 
@@ -177,6 +238,10 @@ export default function useSelaBridge() {
         bridgeRef.current?.manualToggle()
       },
       mulaiOtomatis: () => bridgeRef.current?.autoStart(),
+      // Pastikan sambungan + sesi dengar siap (dipanggil saat pindah halaman).
+      siapSiaga: () => bridgeRef.current?.siapSiaga(),
+      // Tombol pada pemutar musik di panel percakapan.
+      kendaliMusik: (jenis, nilai) => bridgeRef.current?.kendaliMusik(jenis, nilai),
       toggleMode: () => bridgeRef.current?.autoToggle(),
       batalkan: () => {
         selesaiMenunggu()
@@ -206,6 +271,7 @@ export default function useSelaBridge() {
     modeOtomatis,
     teksTombol,
     barisMusik,
+    musik,
     pesan,
     lip,
     catatan,

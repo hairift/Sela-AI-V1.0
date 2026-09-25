@@ -53,6 +53,9 @@ class Events:
     # 音乐控制命令（从外部控制 MusicPlayer）
     MUSIC_PAUSE_REQUEST = "music_pause_request"  # 请求暂停（如 TTS）
     MUSIC_RESUME_REQUEST = "music_resume_request"  # 请求恢复
+    # Kendali dari pemutar musik di antarmuka web: jeda, lanjut, hentikan,
+    # lompat posisi, mundur/maju 15 detik.
+    MUSIC_CONTROL_REQUEST = "music_control_request"
 
     # UI 操作（界面 → 插件）
     UI_BUTTON_PRESS = "ui_button_press"  # 手动：按下
@@ -67,6 +70,9 @@ class Events:
     # pertanyaan panjang disintesis menjadi suara lebih dulu lalu dikirim lewat
     # jalur audio biasa. Ditangani oleh AudioPlugin.
     UI_SEND_LONG_TEXT = "ui_send_long_text"
+    # Pastikan sambungan + sesi dengar siap. Dipancarkan antarmuka setiap
+    # kali pengguna berpindah halaman agar SELA selalu siaga.
+    UI_READY_REQUEST = "ui_ready_request"
     UI_QUIT_REQUEST = "ui_quit_request"  # 退出
     UI_OPEN_SETTINGS = "ui_open_settings"  # 打开设置
     UI_TOGGLE_WINDOW = "ui_toggle_window"  # 显隐主窗口（GUI）

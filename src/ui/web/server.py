@@ -50,6 +50,44 @@ def _resolve_dist_dir() -> Path:
     return get_app_root() / "webui" / "dist"
 
 
+class _PengukurLevel:
+    """Penampung level audio dari aliran mikrofon aplikasi.
+
+    Dipasang sebagai pendengar pada AudioCodec, mengumpulkan blok audio yang
+    SUDAH mengalir (tidak membuka perangkat baru), lalu menghitung RMS dan
+    puncaknya.
+    """
+
+    def __init__(self) -> None:
+        self._rms: list[float] = []
+        self._puncak: list[float] = []
+
+    def on_audio_data(self, audio_data) -> None:
+        try:
+            import numpy as np
+
+            data = np.asarray(audio_data, dtype=np.float32).reshape(-1)
+            if data.size == 0:
+                return
+            self._rms.append(float(np.sqrt(np.mean(data * data))))
+            self._puncak.append(float(np.max(np.abs(data))))
+        except Exception:
+            pass
+
+    @property
+    def jumlah(self) -> int:
+        return len(self._rms)
+
+    def rms(self) -> float:
+        if not self._rms:
+            return 0.0
+        # Pakai nilai tertinggi: pengguna mungkin baru bicara di akhir jendela.
+        return max(self._rms)
+
+    def puncak(self) -> float:
+        return max(self._puncak) if self._puncak else 0.0
+
+
 class SelaWebServer:
     """Pembungkus aiohttp untuk antarmuka web SELA."""
 
@@ -59,8 +97,11 @@ class SelaWebServer:
         host: str = "127.0.0.1",
         port: int = 8765,
         on_config_changed: Optional[Any] = None,
+        manager: Optional[Any] = None,
     ):
         self._bridge = bridge
+        # Dipakai uji mikrofon untuk membaca level dari aliran audio aplikasi.
+        self._manager = manager
         self._host = host
         self._port = port
         self._on_config_changed = on_config_changed
@@ -322,12 +363,16 @@ class SelaWebServer:
             return web.json_response({"ok": False, "error": str(e)}, status=500)
 
     async def _uji_mikrofon_handler(self, request: web.Request) -> web.StreamResponse:
-        """Rekam mikrofon sebentar dan laporkan level suaranya.
+        """Ukur level mikrofon dari aliran audio yang SEDANG dipakai aplikasi.
+
+        Penting: pengukuran memakai aliran milik aplikasi, bukan membuka
+        perangkat baru. Di Linux/ALSA perangkat hanya boleh dibuka satu proses;
+        membuka stream kedua menghasilkan SENYAP, sehingga uji sebelumnya
+        selalu melaporkan RMS 0 walaupun mikrofon sebenarnya sehat.
 
         Berguna saat pengguna melaporkan "mikrofon tertekan tetapi suara saya
-        tidak menjadi teks". Bila level RMS mendekati nol, masalahnya ada di
-        sisi perangkat/izin mikrofon - bukan di mesin AI - sehingga pengguna
-        mendapat petunjuk yang tepat alih-alih menebak.
+        tidak menjadi teks": bila level mendekati nol, masalahnya di perangkat
+        atau izin mikrofon - bukan di mesin AI.
         """
         try:
             detik = float(request.query.get("detik", "3"))
@@ -335,41 +380,55 @@ class SelaWebServer:
             detik = 3.0
         detik = max(1.0, min(8.0, detik))
 
+        codec = getattr(self._manager, "_codec", None) if self._manager else None
+        if codec is None:
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": (
+                        "Aliran audio belum siap. Tunggu beberapa detik setelah "
+                        "aplikasi terbuka lalu coba lagi."
+                    ),
+                }
+            )
+
         try:
             import numpy as np
-            import sounddevice as sd
 
-            from src.constants.constants import AudioConfig
+            kelas = _PengukurLevel()
+            codec.add_audio_listener(kelas)
+            try:
+                await asyncio.sleep(detik)
+            finally:
+                try:
+                    codec.remove_audio_listener(kelas)
+                except Exception:
+                    pass
 
-            laju = AudioConfig.INPUT_SAMPLE_RATE
-            rekaman = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: sd.rec(
-                    int(laju * detik),
-                    samplerate=laju,
-                    channels=1,
-                    dtype="float32",
-                ),
-            )
-            await asyncio.get_event_loop().run_in_executor(None, sd.wait)
-            data = np.asarray(rekaman, dtype=np.float32).reshape(-1)
-            if data.size == 0:
+            if kelas.jumlah == 0:
                 return web.json_response(
-                    {"ok": False, "error": "Tidak ada data dari mikrofon."}
+                    {
+                        "ok": False,
+                        "error": (
+                            "Tidak ada data audio masuk. Mikrofon mungkin tidak "
+                            "aktif, diredam, atau dipakai proses lain."
+                        ),
+                    }
                 )
-            rms = float(np.sqrt(np.mean(data * data)))
-            puncak = float(np.max(np.abs(data)))
+
+            rms = kelas.rms()
+            puncak = kelas.puncak()
 
             if rms < 0.001:
                 nilai = "hening"
                 saran = (
                     "Mikrofon hampir tidak menangkap suara. Periksa: "
-                    "(1) mikrofon tidak diredam (alsamixer -c 0, tekan M bila 'MM'), "
-                    "(2) volume rekam dinaikkan, "
-                    "(3) perangkat masukan yang dipilih sudah benar, "
+                    "(1) mikrofon tidak diredam - jalankan 'alsamixer', tekan F4 "
+                    "lalu M bila muncul 'MM'; "
+                    "(2) volume rekam dinaikkan; "
+                    "(3) perangkat masukan yang dipilih sudah benar; "
                     "(4) pengguna tergabung di grup 'audio'. "
-                    "Di Linux, jalankan: arecord -d 3 -f S16_LE -r 16000 tes.wav "
-                    "lalu aplay tes.wav untuk memastikan."
+                    "Uji cepat: arecord -d 3 -f S16_LE -r 16000 tes.wav && aplay tes.wav"
                 )
             elif rms < 0.01:
                 nilai = "pelan"
@@ -382,7 +441,8 @@ class SelaWebServer:
                 saran = "Mikrofon menangkap suara dengan baik."
 
             logger.info(
-                f"Uji mikrofon: rms={rms:.4f} puncak={puncak:.4f} ({nilai})"
+                f"Uji mikrofon: rms={rms:.4f} puncak={puncak:.4f} "
+                f"({kelas.jumlah} blok, {nilai})"
             )
             return web.json_response(
                 {
@@ -390,6 +450,7 @@ class SelaWebServer:
                     "rms": round(rms, 5),
                     "puncak": round(puncak, 5),
                     "detik": detik,
+                    "blok": kelas.jumlah,
                     "nilai": nilai,
                     "saran": saran,
                 }

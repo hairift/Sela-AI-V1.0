@@ -58,6 +58,7 @@ class MusicEventBridge:
         if event_bus:
             event_bus.on(Events.MUSIC_PAUSE_REQUEST, self._on_pause_request)
             event_bus.on(Events.MUSIC_RESUME_REQUEST, self._on_resume_request)
+            event_bus.on(Events.MUSIC_CONTROL_REQUEST, self._on_control_request)
             event_bus.on(Events.AUDIO_CODEC_CHANGED, self.on_audio_codec_changed)
             logger.info("MusicPlayer 已连接到 EventBus")
 
@@ -123,6 +124,39 @@ class MusicEventBridge:
             await self.event_bus.emit(Events.MUSIC_LYRICS_UPDATE, data)
         except Exception as e:
             logger.debug(f"发送歌词事件失败: {e}")
+
+    async def _on_control_request(self, data: Any) -> None:
+        """Tangani tombol pemutar musik dari antarmuka.
+
+        Mendukung: pause, resume, stop, seek (nilai = persen 0-100),
+        mundur, dan maju (masing-masing 15 detik dari posisi sekarang).
+        """
+        if not isinstance(data, dict):
+            return
+        jenis = str(data.get("jenis") or "").lower()
+        nilai = data.get("nilai")
+
+        try:
+            if jenis == "pause":
+                await self._player.pause(source="manual")
+            elif jenis == "resume":
+                await self._player.resume()
+            elif jenis == "stop":
+                await self._player.stop()
+            elif jenis == "seek":
+                persen = int(nilai) if nilai is not None else -1
+                if persen >= 0:
+                    await self._player.seek(percent=persen)
+            elif jenis in ("mundur", "maju"):
+                status = await self._player.get_status()
+                posisi = float(status.get("position") or 0)
+                delta = -15 if jenis == "mundur" else 15
+                baru = max(0, posisi + delta)
+                await self._player.seek(position=int(baru))
+            else:
+                logger.debug(f"Kendali musik tidak dikenal: {jenis}")
+        except Exception as e:
+            logger.warning(f"Kendali musik '{jenis}' gagal: {e}")
 
     async def _on_pause_request(self, data: Any) -> None:
         try:

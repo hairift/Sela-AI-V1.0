@@ -91,6 +91,20 @@ class ConversationSession:
             msg_type = json_data.get("type") if isinstance(json_data, dict) else None
             logger.info(f"收到JSON消息: type={msg_type}")
 
+            # Catat hasil pengenalan suara. Tanpa ini, keluhan "sudah bicara
+            # tetapi tidak menjadi teks" tidak bisa ditelusuri: kita tidak tahu
+            # apakah server mengembalikan teks kosong (mikrofon senyap) atau
+            # teks yang salah dengar (kualitas audio buruk).
+            if msg_type == "stt" and isinstance(json_data, dict):
+                teks_stt = str(json_data.get("text") or "").strip()
+                if teks_stt:
+                    logger.info(f"Pengenalan suara: {teks_stt[:120]}")
+                else:
+                    logger.warning(
+                        "Pengenalan suara KOSONG - server tidak menangkap kata. "
+                        "Periksa mikrofon: level, bisu (mute), dan perangkat terpilih."
+                    )
+
             if msg_type == "tts":
                 state = json_data.get("state")
                 if state == "start":

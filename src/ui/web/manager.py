@@ -52,6 +52,7 @@ class WebViewManager(ViewPort):
             self.bridge,
             port=DEFAULT_PORT,
             on_config_changed=self._on_config_changed_request,
+            manager=self,
         )
 
         # Langganan codec audio dipasang DI SINI, bukan di start().
@@ -85,6 +86,7 @@ class WebViewManager(ViewPort):
                 try:
                     self.server = SelaWebServer(
                         self.bridge,
+                        manager=self,
                         port=kandidat,
                         on_config_changed=self._on_config_changed_request,
                     )
@@ -104,6 +106,7 @@ class WebViewManager(ViewPort):
                 )
                 self.server = SelaWebServer(
                     self.bridge,
+                    manager=self,
                     port=0,
                     on_config_changed=self._on_config_changed_request,
                 )

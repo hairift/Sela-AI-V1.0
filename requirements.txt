@@ -101,3 +101,8 @@ lgpio>=0.2.2.0; sys_platform == "linux"
 #
 # Catatan Raspberry Pi (kamera CSI): JANGAN pasang picamera2 lewat pip.
 # Gunakan paket sistem:  sudo apt install python3-picamera2
+
+# Pencarian berita terkini. Paket lama `duckduckgo_search` sudah tidak
+# dirawat dan hanya mengembalikan halaman depan situs berita; penggantinya
+# `ddgs` mengembalikan berita yang benar-benar dicari beserta tanggalnya.
+ddgs>=9.0.0
