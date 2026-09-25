@@ -63,7 +63,14 @@ def register_camera_tools(add_tool: Callable[[McpTool], None], camera) -> None:
                 "English: Take a photo and explain it. Use this tool after the user asks you to see something.\n"
                 "Args: `question` - The question that you want to ask about the photo.\n"
                 "Return: A JSON object that provides the photo information.\n"
-                "Examples: '帮我看看这是什么', '拍个照', '看看前面', 'take a photo', 'what is this'."
+                "Examples: '帮我看看这是什么', '拍个照', '看看前面', 'take a photo', 'what is this'.\n"
+                # Tambahan SELA (aditif): pemicu Bahasa Indonesia. Tanpa ini,
+                # permintaan seperti "tolong foto saya" tidak dikenali model
+                # sehingga kamera tidak pernah dipakai.
+                "Indonesia (panggil alat ini): 'tolong foto saya', 'ambil foto', "
+                "'potret saya', 'lihat saya', 'bisa lihat saya?', 'lihat wajah saya', "
+                "'foto saya sekarang', 'apa yang saya pakai', 'lihat penampilan saya', "
+                "'tengok saya'. Contoh: 'tolong foto saya', 'lihat saya dong'."
             ),
             PropertyList([Property("question", PropertyType.STRING)]),
             take_photo,

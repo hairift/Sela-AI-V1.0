@@ -74,14 +74,9 @@ def register_music_tools(
         McpTool(
             "music_player.search_and_play",
             (
-                "WAJIB dipanggil setiap kali pengguna ingin MENDENGARKAN atau MEMUTAR "
-                "musik, misalnya 'putar lagu ...', 'nyalikan musik ...', 'mau dengar lagu ...', "
-                "'mainkan lagu ...', atau menyebut judul lagu/penyanyi. "
-                "Panggil tool ini LEBIH DULU, jangan menjawab bahwa lagu tidak ditemukan "
-                "sebelum tool ini benar-benar dipanggil. "
-                "Bila ada musik yang sedang diputar, tool ini menghentikannya lalu memutar "
-                "lagu baru. Pencarian mencakup lagu Indonesia maupun luar negeri. "
-                "Parameter: song_name - judul lagu dan/atau nama penyanyi."
+                "搜索并播放指定的歌曲。根据歌名在线搜索歌曲并自动开始播放。"
+                "如果已有音乐在播放，会自动停止当前音乐并播放新歌曲。"
+                "用于播放用户请求的特定歌曲，例如'播放周杰伦的稻香'、'听一下孤勇者'。"
             ),
             PropertyList([Property("song_name", PropertyType.STRING)]),
             search_and_play,
@@ -89,11 +84,9 @@ def register_music_tools(
         McpTool(
             "music_player.pause",
             (
-                "Jeda musik yang sedang diputar tanpa kehilangan posisi; "
-                "bisa dilanjutkan dengan resume. Panggil saat pengguna berkata "
-                "'jeda musik', 'hentikan dulu musiknya', 'pause lagunya'. "
-                "PENTING: panggil tool ini SEBELUM menjawab, jika tidak musik akan "
-                "otomatis lanjut setelah SELA selesai bicara."
+                "暂停当前正在播放的音乐，保持播放位置，之后可用 resume 恢复。"
+                "当用户说'暂停音乐'、'先停一下音乐'、'音乐暂停'时，必须调用此工具。"
+                "重要：回复用户之前先调用此工具，否则 TTS 结束后音乐会自动恢复。"
             ),
             PropertyList(),
             pause,
@@ -101,10 +94,10 @@ def register_music_tools(
         McpTool(
             "music_player.resume",
             (
-                "Lanjutkan musik yang dijeda, dari posisi terakhir. "
-                "Panggil saat pengguna berkata 'lanjutkan musiknya', 'putar lagi', "
-                "'nyalakan lagi musiknya'. Catatan: saat SELA bicara musik dijeda "
-                "otomatis dan lanjut sendiri; tool ini hanya untuk permintaan pengguna."
+                "恢复播放之前暂停的音乐，从暂停位置继续。"
+                "当用户说'继续播放'、'恢复音乐'、'把音乐打开'时调用。"
+                "注意：TTS 说话时音乐会自动暂停，说完自动恢复，无需调用此工具。"
+                "只有用户主动暂停后要求恢复时才需要调用。"
             ),
             PropertyList(),
             resume,
@@ -112,10 +105,9 @@ def register_music_tools(
         McpTool(
             "music_player.stop",
             (
-                "Hentikan musik sepenuhnya dan kembali ke awal. "
-                "Panggil saat pengguna berkata 'matikan musik', 'stop musiknya', "
-                "'tidak usah diputar', 'sudahi'. Beda dengan pause: stop benar-benar "
-                "berhenti, pause hanya menjeda dan bisa dilanjutkan."
+                "完全停止并关闭音乐播放，重置到开头。"
+                "当用户说'关闭音乐'、'停止音乐'、'不听了'、'别放了'、'关掉音乐'时，必须调用此工具。"
+                "与 pause 的区别：stop 是彻底关闭，pause 是临时暂停可恢复。"
             ),
             PropertyList(),
             stop,
@@ -123,13 +115,12 @@ def register_music_tools(
         McpTool(
             "music_player.seek",
             (
-                "Khusus MELOMPAT ke posisi tertentu dalam lagu. "
-                "Bila pengguna berkata 'lompat ke 30%', 'ke tengah lagu' -> pakai "
-                "percent (0-100); pemutar menghitung sendiri detiknya. "
-                "Bila berkata 'ke menit 2', 'ke detik 90', 'kembali ke awal' -> pakai "
-                "position (detik, mulai 0). Untuk 'maju 30 detik': panggil get_status "
-                "dulu untuk posisi sekarang, lalu position = detik sekarang + 30. "
-                "Tidak perlu lirik untuk melompat."
+                "【进度/跳转专用】跳转到当前歌曲的指定位置。"
+                "用户说「跳到30%」「进度跳转20%」「跳到一半」时：必须用 percent（0-100），"
+                "由播放器按总时长自动换算秒数，不要查歌词、不要猜位置。"
+                "用户说「跳到2分钟」「跳到90秒」「回到开头」时：用 position（秒，从0开始）。"
+                "「快进30秒」：先 get_status 取当前位置，再 position=当前秒+30。"
+                "与 get_lyrics 无关；百分比跳转不需要歌词。"
             ),
             PropertyList(
                 [
@@ -142,10 +133,9 @@ def register_music_tools(
         McpTool(
             "music_player.get_status",
             (
-                "Lihat status pemutaran: judul lagu, sedang diputar/dijeda, "
-                "durasi total (detik), posisi sekarang (detik), dan persentase. "
-                "Dipakai untuk 'sekarang lagunya sampai mana', 'lagunya berapa lama'. "
-                "Untuk melompat posisi gunakan seek, bukan tool ini."
+                "查询当前播放状态：歌名、是否播放/暂停、总时长（秒）、当前位置（秒）、进度百分比。"
+                "用于「现在播到哪了」「这首歌多长」「快进前先看进度」等。"
+                "不要用本工具代替 seek；跳转请调用 seek。"
             ),
             PropertyList(),
             get_status,

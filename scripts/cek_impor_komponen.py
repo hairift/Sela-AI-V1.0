@@ -95,7 +95,15 @@ def berkas_tak_terpakai() -> list[str]:
             continue
 
         src = isi[f]
-        m = re.search(r"export\s+default\s+(?:function\s+)?([A-Za-z0-9_]+)", src)
+        # Dua bentuk ekspor bawaan yang dipakai proyek ini:
+        #   export default function Nama()   /  export default Nama
+        #   export default memo(Nama)        (dibungkus pembantu seperti memo)
+        # Tanpa bentuk kedua, ChatBubble.jsx salah dilaporkan sebagai kode mati
+        # karena yang tertangkap adalah nama pembungkusnya ("memo").
+        m = re.search(
+            r"export\s+default\s+[A-Za-z0-9_.]*\s*\(\s*([A-Z][A-Za-z0-9_]*)\s*\)",
+            src,
+        ) or re.search(r"export\s+default\s+(?:function\s+)?([A-Za-z0-9_]+)", src)
         if not m:
             continue
         nama = m.group(1)

@@ -227,7 +227,13 @@ class WebViewManager(ViewPort):
         self._fire({"t": "chat", "role": "assistant", "text": text})
 
     def set_music_line(self, text: str) -> None:
-        self._fire({"t": "music_line", "text": text})
+        """Baris status musik tidak lagi ditampilkan di antarmuka web.
+
+        Metode tetap ada (bukan dihapus) karena ``UiPresenter`` memanggilnya
+        lewat protokol :class:`ViewPort`. Musik tetap berjalan lewat mesin
+        py-xiaozhi seperti semula; hanya tampilannya yang tidak dipakai.
+        """
+        logger.debug(f"WebViewManager: baris musik diabaikan ({text!r})")
 
     def set_button_text(self, text: str) -> None:
         self._fire({"t": "button_text", "text": text})

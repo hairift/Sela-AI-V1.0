@@ -11,7 +11,6 @@ import requests
 from src.logging import get_logger
 
 from .config import DEFAULT_SEARCH_URL
-from .youtube import skor_relevansi
 
 logger = get_logger()
 
@@ -23,54 +22,6 @@ class SearchHit:
     duration: float
     # 交给 downloader.resolve 的模板 URL，不是最终 CDN
     api_url: str
-
-
-def _durasi_detik(nilai) -> float:
-    """Ubah DURATION dari Kuwo (string) menjadi detik. 0 bila tidak jelas."""
-    try:
-        return float(nilai or 0)
-    except (ValueError, TypeError):
-        return 0.0
-
-
-def _judul_lengkap(item: dict) -> str:
-    """Judul gabungan (judul - artis (album)) untuk dinilai relevansinya."""
-    judul = str(item.get("SONGNAME", "") or "").strip()
-    artis = str(item.get("ARTIST", "") or "").strip()
-    album = str(item.get("ALBUM", "") or "").strip()
-    gabung = f"{judul} - {artis}" if (judul and artis) else (judul or artis)
-    if album:
-        gabung += f" ({album})"
-    return gabung
-
-
-def _pilih_terbaik(results: list, kueri: str) -> dict | None:
-    """Pilih kandidat dengan skor relevansi tertinggi.
-
-    Kuwo sering menaruh kompilasi remix di urutan pertama walaupun kata kunci
-    penyanyi ada di judulnya (mis. "Hitam Putih - REMIX ... Sheila On 7 ...").
-    Mengambil hasil pertama begitu saja membuat pengguna mendengar lagu yang
-    salah. Penilaian relevansi yang sama dengan jalur YouTube dipakai di sini.
-    """
-    terbaik = None
-    skor_terbaik = float("-inf")
-    for item in results:
-        if not isinstance(item, dict) or not item.get("MUSICRID"):
-            continue
-        skor = skor_relevansi(
-            _judul_lengkap(item), kueri, int(_durasi_detik(item.get("DURATION")))
-        )
-        if skor > skor_terbaik:
-            skor_terbaik = skor
-            terbaik = item
-    if terbaik is not None:
-        logger.info(
-            "Kuwo: kandidat terbaik '%s' (skor %.2f) dari %d hasil",
-            _judul_lengkap(terbaik),
-            skor_terbaik,
-            len(results),
-        )
-    return terbaik
 
 
 async def search_song(song_name: str, config: dict) -> SearchHit | None:
@@ -121,11 +72,7 @@ async def search_song(song_name: str, config: dict) -> SearchHit | None:
             logger.warning(f"未找到歌曲: {song_name}")
             return None
 
-        first = _pilih_terbaik(results, song_name)
-        if first is None:
-            logger.warning(f"Tidak ada hasil yang bisa dipakai: {song_name}")
-            return None
-
+        first = results[0]
         music_rid = first.get("MUSICRID", "")
         song_id = music_rid.replace("MUSIC_", "") if music_rid else ""
         title = first.get("SONGNAME", song_name)

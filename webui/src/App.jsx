@@ -17,7 +17,9 @@ import HamburgerMenu from './components/HamburgerMenu'
 import Settings from './components/Settings'
 import GerbangAdmin from './components/GerbangAdmin'
 import Help from './components/Help'
+import KartuKamera from './components/KartuKamera'
 import useSelaBridge from './lib/useSelaBridge'
+import { KUNCI_KAMERA } from './lib/percakapan'
 
 let urutSesi = 0
 const idSesi = () => `s${Date.now().toString(36)}${(urutSesi++).toString(36)}`
@@ -78,6 +80,20 @@ function temaAwal() {
   return 'light'
 }
 
+/**
+ * Apakah kartu kamera melayang dinyalakan.
+ *
+ * Disimpan di peramban (bukan di config mesin AI) karena ini murni soal
+ * tampilan kios. Halaman Pengaturan menulis nilai yang sama.
+ */
+function kameraAwal() {
+  try {
+    return localStorage.getItem(KUNCI_KAMERA) !== '0'
+  } catch (_) {
+    return true
+  }
+}
+
 export default function App() {
   const {
     terhubung,
@@ -85,10 +101,10 @@ export default function App() {
     stateAvatar,
     emosi,
     teksTombol,
-    barisMusik,
-    musik,
     pesan,
     lip,
+    langkahAlat,
+    permintaanFoto,
     aksi,
   } = useSelaBridge()
 
@@ -100,9 +116,16 @@ export default function App() {
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   )
   const [tema, setTema] = useState(temaAwal)
+  const [kameraMelayang, setKameraMelayang] = useState(kameraAwal)
   // Animasi sekali-jalan yang dipicu oleh emosi dari mesin AI.
   const [gerakan, setGerakan] = useState(null)
   const emosiSebelumnya = useRef(null)
+
+  // Beri tahu mesin AI apakah kamera peramban boleh dipakai. Bila kartunya
+  // mati, alat "take_photo" kembali memakai kamera perangkat seperti semula.
+  useEffect(() => {
+    aksi.setKameraAktif?.(kameraMelayang)
+  }, [kameraMelayang, aksi])
 
   useEffect(() => {
     if (!emosi) return
@@ -196,11 +219,33 @@ export default function App() {
   // Setiap kali pengguna berpindah halaman, pastikan sambungan dan sesi
   // dengar siap. Sebelumnya keluar dari Pengaturan kadang meninggalkan
   // sambungan setengah siap sehingga SELA diam sampai aplikasi dijalankan
-  // ulang.
+  // ulang. Sekaligus membaca ulang setelan kartu kamera, karena halaman
+  // Pengaturan menulisnya ke penyimpanan peramban.
   useEffect(() => {
+    setKameraMelayang(kameraAwal())
     const tunda = setTimeout(() => aksi.siapSiaga?.(), 300)
     return () => clearTimeout(tunda)
   }, [halaman, aksi])
+
+  // Foto dari kartu kamera: dikirim ke mesin AI (supaya alat kamera memakai
+  // gambar ini) sekaligus ditampilkan di percakapan sebagai pesan pengguna.
+  const tanganiBingkai = useCallback(
+    (dataUrl) => {
+      aksi.kirimBingkai?.(dataUrl)
+      aksi.tambahFoto?.(dataUrl, 'Foto dari kamera')
+      setPanelTerbuka(true)
+    },
+    [aksi],
+  )
+
+  const tutupKamera = useCallback(() => {
+    setKameraMelayang(false)
+    try {
+      localStorage.setItem(KUNCI_KAMERA, '0')
+    } catch (_) {
+      // diabaikan
+    }
+  }, [])
 
   // Escape menutup menu / kembali ke beranda.
   useEffect(() => {
@@ -249,11 +294,19 @@ export default function App() {
               onTutup={(tutup) => setPanelTerbuka(!tutup)}
               terbuka={panelTerbuka}
               stateAvatar={stateAvatar}
-              barisMusik={barisMusik}
-              musik={musik}
-              aksi={aksi}
               terhubung={terhubung}
+              volume={lip?.v || 0}
+              langkahAlat={langkahAlat}
             />
+
+            {/* Kartu kamera melayang (bisa digeser, bisa dimatikan) */}
+            {kameraMelayang && (
+              <KartuKamera
+                nonce={permintaanFoto}
+                onBingkai={tanganiBingkai}
+                onTutup={tutupKamera}
+              />
+            )}
 
             {/* Tombol suara + status */}
             <VoiceControls

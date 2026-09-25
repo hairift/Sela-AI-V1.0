@@ -5,12 +5,17 @@
  * Di layar desktop panel ini mengambang di sisi kanan (seperti pada desain
  * acuan). Di layar potret panel ini menjadi lembaran bawah yang menutupi
  * sebagian avatar, sehingga tetap nyaman dipakai di layar sentuh kios.
+ *
+ * Dua zona balasan cepat:
+ *   1. di atas kolom input - daftar topik populer yang bisa digeser;
+ *   2. di bawah setiap jawaban SELA - tanya lanjut sesuai topik jawaban.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ChatBubble from './ChatBubble'
-import PemutarMusik from './PemutarMusik'
+import PapanAlat from './PapanAlat'
 import { t } from '../lib/translations'
+import { MAKS_PANJANG_TEKS, balasanUntuk, topikDari } from '../lib/percakapan'
 
 const IconSparkle = () => (
   <svg className="w-10 h-10 text-blue-200" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
@@ -56,29 +61,91 @@ export default function ChatPanel({
   onTutup,
   terbuka = true,
   stateAvatar = 'idle',
-  barisMusik = '',
   terhubung = false,
-  musik = null,
-  aksi = null,
+  volume = 0,
+  langkahAlat = [],
 }) {
   const [nilai, setNilai] = useState('')
   const [fokus, setFokus] = useState(false)
   const [diBawah, setDiBawah] = useState(true)
-  const ujungRef = useRef(null)
+  const [saranPeta, setSaranPeta] = useState({})
+
   const gulirRef = useRef(null)
   const chipRef = useRef(null)
+  const diBawahRef = useRef(true)
+  diBawahRef.current = diBawah
+  // Pertanyaan yang sudah pernah ditampilkan, supaya tanya lanjut tidak
+  // mengulang kalimat yang sama terus-menerus.
+  const terpakaiRef = useRef([])
+  const rafRef = useRef(0)
 
   const cepat = t.id.quickReplies
 
+  // --- Gulir pintar -------------------------------------------------------
+  // Ikut bergerak mengikuti teks yang sedang muncul, TETAPI berhenti begitu
+  // pengguna menggeser ke atas agar bacaannya tidak tertarik ke bawah.
+  const gulirKeBawah = useCallback((halus = false) => {
+    const el = gulirRef.current
+    if (!el) return
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: halus ? 'smooth' : 'auto' })
+    })
+  }, [])
+
   useEffect(() => {
-    if (diBawah) ujungRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [pesan, diBawah])
+    if (diBawah) gulirKeBawah(true)
+  }, [pesan.length, diBawah, gulirKeBawah])
+
+  // Dipanggil gelembung saat teksnya bertambah (efek mengetik).
+  const tanganiTumbuh = useCallback(() => {
+    if (diBawahRef.current) gulirKeBawah(false)
+  }, [gulirKeBawah])
+
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
 
   const tanganiGulir = (e) => {
     const el = e.currentTarget
     setDiBawah(el.scrollHeight - el.scrollTop - el.clientHeight < 60)
   }
 
+  // Menggeser ke atas (roda mouse / sentuh) langsung menghentikan gulir
+  // otomatis, tanpa menunggu event scroll.
+  const tanganiGeserManual = () => {
+    const el = gulirRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight >= 60) setDiBawah(false)
+  }
+
+  // --- Balasan cepat kedua: tanya lanjut per topik -------------------------
+  const indeksJawabanTerakhir = useMemo(() => {
+    for (let i = pesan.length - 1; i >= 0; i -= 1) {
+      if (pesan[i].peran === 'assistant') return i
+    }
+    return -1
+  }, [pesan])
+
+  const teksPenggunaTerakhir = useMemo(() => {
+    for (let i = pesan.length - 1; i >= 0; i -= 1) {
+      if (pesan[i].peran === 'user') return pesan[i].teks || ''
+    }
+    return ''
+  }, [pesan])
+
+  useEffect(() => {
+    if (indeksJawabanTerakhir < 0) return
+    const m = pesan[indeksJawabanTerakhir]
+    if (!m || saranPeta[m.id]) return
+    const topik = topikDari(`${teksPenggunaTerakhir} ${m.teks}`)
+    const pilihan = balasanUntuk(topik, 3, terpakaiRef.current)
+    terpakaiRef.current = [
+      ...terpakaiRef.current,
+      ...pilihan.map((p) => p.text),
+    ].slice(-12)
+    setSaranPeta((lama) => ({ ...lama, [m.id]: pilihan }))
+  }, [pesan, indeksJawabanTerakhir, teksPenggunaTerakhir, saranPeta])
+
+  // --- Aksi ---------------------------------------------------------------
   const kirim = (e) => {
     if (e?.preventDefault) e.preventDefault()
     const teks = nilai.trim()
@@ -88,14 +155,20 @@ export default function ChatPanel({
     onKirim?.(teks)
   }
 
-  const kirimCepat = (teks) => {
-    setDiBawah(true)
-    onKirim?.(teks)
-  }
+  const kirimCepat = useCallback(
+    (teks) => {
+      setDiBawah(true)
+      onKirim?.(teks)
+    },
+    [onKirim],
+  )
 
   const geserChip = (arah) => chipRef.current?.scrollBy({ left: arah * 160, behavior: 'smooth' })
 
   const sedangMendengar = stateAvatar === 'listening'
+  const sisa = MAKS_PANJANG_TEKS - nilai.length
+  const hampirPenuh = sisa <= 4
+  const sedangBekerja = langkahAlat.length > 0
 
   return (
     <>
@@ -198,33 +271,52 @@ export default function ChatPanel({
             <div
               ref={gulirRef}
               onScroll={tanganiGulir}
+              onWheel={tanganiGeserManual}
+              onTouchMove={tanganiGeserManual}
               className="flex-1 overflow-y-auto pr-1 flex flex-col gap-1 hide-scrollbar"
             >
-              {pesan.map((m) => (
+              {pesan.map((m, i) => (
                 <ChatBubble
                   key={m.id}
                   role={m.peran}
                   text={m.teks}
-                  isNew={false}
-                  isSpeaking={stateAvatar === 'speaking' && m.peran === 'assistant' && m.id === pesan[pesan.length - 1]?.id}
+                  gambar={m.gambar || null}
+                  mengetik={m.peran === 'assistant' && i === indeksJawabanTerakhir}
+                  isSpeaking={
+                    stateAvatar === 'speaking' &&
+                    m.peran === 'assistant' &&
+                    i === indeksJawabanTerakhir
+                  }
+                  // Level suara hanya diteruskan ke gelembung yang sedang
+                  // berbicara. Kalau diteruskan ke semua gelembung, seluruh
+                  // percakapan ikut digambar ulang 30 kali per detik.
+                  volume={
+                    m.peran === 'assistant' && i === indeksJawabanTerakhir
+                      ? volume
+                      : 0
+                  }
+                  saran={saranPeta[m.id] || []}
+                  onSaran={kirimCepat}
+                  onTumbuh={tanganiTumbuh}
                 />
               ))}
-              {stateAvatar === 'thinking' && (
+
+              {/* Papan langkah alat: mesin AI sedang membuka data */}
+              <PapanAlat langkah={langkahAlat} label={t.id.toolWorking} />
+
+              {stateAvatar === 'thinking' && !sedangBekerja && (
                 <ChatBubble role="assistant" text="" isLoading />
               )}
-              <div ref={ujungRef} />
             </div>
-          )}
-
-          <PemutarMusik musik={musik} aksi={aksi} />
-          {barisMusik && (
-            <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 truncate shrink-0">{barisMusik}</p>
           )}
 
           {!diBawah && pesan.length > 0 && (
             <button
               type="button"
-              onClick={() => ujungRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => {
+                setDiBawah(true)
+                gulirKeBawah(true)
+              }}
               className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 w-8 h-8 rounded-full bg-white/95 dark:bg-slate-800/95 border border-gray-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-700 active:scale-95 transition-all animate-fade-in"
               title={t.id.scrollDown}
             >
@@ -279,10 +371,12 @@ export default function ChatPanel({
             id="kolom-pesan"
             type="text"
             value={nilai}
-            onChange={(e) => setNilai(e.target.value)}
+            maxLength={MAKS_PANJANG_TEKS}
+            onChange={(e) => setNilai(e.target.value.slice(0, MAKS_PANJANG_TEKS))}
             onFocus={() => setFokus(true)}
             onBlur={() => setFokus(false)}
             placeholder={sedangMendengar ? t.id.listeningPlaceholder : t.id.typeMessage}
+            aria-describedby="batas-teks"
             className={`w-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border rounded-2xl pl-3.5 pr-11 py-2.5
               text-gray-800 dark:text-gray-100 text-xs placeholder-gray-400 outline-none shadow-sm transition-all duration-200
               ${sedangMendengar
@@ -314,6 +408,26 @@ export default function ChatPanel({
               <IconMic />
             )}
           </button>
+
+          {/* Penghitung sisa karakter. Muncul saat kolom dipakai supaya tidak
+              mengganggu, dan berubah merah saat hampir penuh. */}
+          <div
+            id="batas-teks"
+            className={`flex items-center justify-between gap-2 px-1 pt-1 text-[10px] transition-opacity ${
+              fokus || nilai ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <span className="text-gray-400 dark:text-gray-500 truncate">
+              {t.id.textLimitHint}
+            </span>
+            <span
+              className={`shrink-0 font-semibold tabular-nums ${
+                hampirPenuh ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'
+              }`}
+            >
+              {nilai.length}/{MAKS_PANJANG_TEKS}
+            </span>
+          </div>
         </form>
       </div>
     </>

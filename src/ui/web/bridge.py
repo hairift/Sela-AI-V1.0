@@ -9,8 +9,10 @@ utuh dan tidak ada tombol yang hilang.
 
 Arah data:
 
-    Python -> Web : status, teks dialog, emosi, mode, lipsync
-    Web -> Python : kirim teks, mulai/hentikan rekam, mode, batal, keluar
+    Python -> Web : status, teks dialog, emosi, mode, lipsync, langkah alat,
+                    permintaan foto
+    Web -> Python : kirim teks, mulai/hentikan rekam, mode, batal, keluar,
+                    bingkai kamera peramban
 """
 
 from __future__ import annotations
@@ -37,6 +39,16 @@ LIP_INTERVAL = 1.0 / LIP_FPS
 LIP_RMS_FLOOR = 0.004
 # Pengali RMS -> bukaan mulut. Dikali silang agar cocok untuk suara TTS normal.
 LIP_GAIN = 9.0
+
+# Panjang maksimum teks yang boleh dikirim lewat kotak obrolan.
+#
+# Server xiaozhi menolak teks panjang pada jalur ``listen/detect`` dengan
+# jawaban: "Detect is only for wake words, do not send long texts." Akibatnya
+# pengguna yang mengetik pertanyaan panjang tidak mendapat jawaban apa pun.
+# Antarmuka membatasi kotak teks pada angka ini, dan jembatan ini memotong
+# sebagai jaring pengaman bila batas itu dilewati. Pertanyaan sepanjang apa pun
+# tetap aman lewat tombol mikrofon karena jalur suara tidak melewati batas ini.
+MAKS_PANJANG_TEKS = 24
 
 
 def _nama_device_state(state: Any) -> str:
@@ -95,6 +107,62 @@ def _teks_bukan_untuk_ditampilkan(teks: str, teks_pengguna_terakhir: str = "") -
     return False
 
 
+# Nama alat MCP -> kalimat yang ditampilkan saat alat itu dipanggil.
+#
+# Antarmuka memperlihatkan langkah ini sebagai animasi supaya pengguna melihat
+# SELA benar-benar membuka data kampus/pencarian, bukan sekadar diam menunggu.
+# Ini murni tampilan: alur pemanggilan alat tetap sepenuhnya milik py-xiaozhi.
+LABEL_ALAT = {
+    "cari_info_kampus": "Membuka data kampus UCIC",
+    "info_kampus": "Memeriksa basis pengetahuan kampus",
+    "take_photo": "Mengambil gambar dari kamera",
+    "cuaca_sekarang": "Mengambil data cuaca terkini",
+    "prakiraan_cuaca": "Menyusun prakiraan cuaca",
+    "cari_web": "Menelusuri sumber di internet",
+    "cari_berita": "Mencari berita terbaru",
+    "take_screenshot": "Mengambil tangkapan layar",
+    "self.application.launch": "Membuka aplikasi",
+    "self.application.scan_installed": "Mendata aplikasi terpasang",
+    "self.application.kill": "Menutup aplikasi",
+}
+
+# Pola permintaan difoto/dilihat lewat kamera. Dipakai agar permintaan seperti
+# "tolong foto saya" langsung memicu kamera peramban, tanpa bergantung pada
+# terjemahan nama alat di model.
+_POLA_MINTA_FOTO = re.compile(
+    r"(foto|potret|selfie|kamera|ambil gambar|lihat(kan)? saya|lihat muka|"
+    r"lihat wajah|wajah saya|muka saya|tengok saya|lihat aku|"
+    r"take a photo|take photo)",
+    re.IGNORECASE,
+)
+
+
+def _minta_foto_dari_teks(teks: str) -> bool:
+    """Apakah pengguna meminta SELA melihat/memotret lewat kamera."""
+    return bool(_POLA_MINTA_FOTO.search(teks or ""))
+
+
+def label_alat(nama: str) -> str:
+    """Kalimat Indonesia untuk sebuah nama alat MCP."""
+    penuh = (nama or "").strip()
+    # Nama beralias titik (mis. "self.application.launch") dicocokkan utuh
+    # lebih dulu, karena memotong di titik justru menghilangkan kuncinya.
+    if penuh in LABEL_ALAT:
+        return LABEL_ALAT[penuh]
+    inti = penuh.split(".")[-1].strip()
+    if not inti:
+        return "Menjalankan alat"
+    if inti in LABEL_ALAT:
+        return LABEL_ALAT[inti]
+    if penuh.startswith("music_player") or inti.startswith("musik"):
+        return "Menyiapkan pemutar musik"
+    if inti.startswith("cari") or "search" in inti:
+        return "Mencari informasi"
+    if inti.startswith("volume"):
+        return "Mengatur volume suara"
+    return f"Menjalankan {inti.replace('_', ' ')}"
+
+
 class SelaBridge:
     """Meneruskan status mesin AI ke antarmuka web dan sebaliknya."""
 
@@ -114,7 +182,6 @@ class SelaBridge:
             "deviceState": "idle",
             "autoMode": False,
             "buttonText": "",
-            "musicLine": "",
         }
 
         # Slot lipsync (diisi dari thread audio, dibaca dari loop asyncio).
@@ -152,8 +219,6 @@ class SelaBridge:
         self._bus.on(Events.SYSTEM_NOTICE, self._on_system_notice)
         self._bus.on(Events.PROTOCOL_CONNECTED, self._on_protocol_connected)
         self._bus.on(Events.PROTOCOL_DISCONNECTED, self._on_protocol_disconnected)
-        self._bus.on(Events.MUSIC_STATE_CHANGED, self._on_music_state)
-        self._bus.on(Events.MUSIC_LYRICS_UPDATE, self._on_music_lyrics)
 
         self._lip_task = asyncio.create_task(self._loop_lipsync(), name="sela:lipsync")
         logger.info("SelaBridge: siap (EventBus terhubung)")
@@ -211,6 +276,17 @@ class SelaBridge:
                     self._clients.discard(ws)
 
     # ------------------------------------------------------------------
+    # Kamera peramban
+    # ------------------------------------------------------------------
+    async def minta_foto(self, sumber: str = "ai") -> None:
+        """Minta antarmuka mengambil satu gambar dari kamera peramban.
+
+        ``sumber`` hanya untuk keterangan di antarmuka: "ai" (mesin AI memanggil
+        alat kamera) atau "pengguna" (pengguna meminta difoto lewat teks).
+        """
+        await self.broadcast({"t": "ambil_foto", "source": sumber, "ts": time.time()})
+
+    # ------------------------------------------------------------------
     # Perintah dari antarmuka web (Web -> Python)
     # ------------------------------------------------------------------
     async def handle_command(self, msg: dict[str, Any]) -> None:
@@ -222,6 +298,14 @@ class SelaBridge:
         try:
             if cmd == "send_text":
                 text = str(msg.get("text") or "").strip()
+                # Jaring pengaman: potong bila antarmuka mengirim lebih panjang
+                # dari batas server (lihat MAKS_PANJANG_TEKS).
+                if len(text) > MAKS_PANJANG_TEKS:
+                    logger.info(
+                        f"SelaBridge: teks {len(text)} karakter dipotong ke "
+                        f"{MAKS_PANJANG_TEKS} agar server mau menjawab"
+                    )
+                    text = text[:MAKS_PANJANG_TEKS]
                 if text:
                     from src.ui.shared.events import UISendTextRequest
 
@@ -229,6 +313,27 @@ class SelaBridge:
                     self._teks_terakhir = text
                     await self._emit(Events.UI_SEND_TEXT, UISendTextRequest(text=text))
                     await self.broadcast({"t": "user_text", "text": text})
+                    # Pengguna minta difoto/dilihat: minta gambar dari kamera
+                    # peramban supaya jawabannya benar-benar melihat keadaan
+                    # sekarang, bukan mengarang.
+                    if _minta_foto_dari_teks(text):
+                        await self.minta_foto(sumber="pengguna")
+
+            elif cmd == "kamera_bingkai":
+                # Satu bingkai JPEG dari kamera peramban (data URL base64).
+                from src.ui.web.kamera_peramban import simpan_bingkai
+
+                if simpan_bingkai(str(msg.get("data") or "")):
+                    await self.broadcast({"t": "kamera_ok", "ts": time.time()})
+
+            elif cmd == "kamera_aktif":
+                # Menyalakan/mematikan pemakaian kamera peramban dari setelan.
+                from src.ui.web.kamera_peramban import set_aktif
+
+                set_aktif(bool(msg.get("aktif")))
+                await self.broadcast(
+                    {"t": "kamera_status", "aktif": bool(msg.get("aktif"))}
+                )
 
             elif cmd == "manual_toggle":
                 await self._emit(Events.UI_MANUAL_TOGGLE)
@@ -247,14 +352,6 @@ class SelaBridge:
 
             elif cmd == "abort":
                 await self._emit(Events.UI_ABORT_REQUEST)
-
-            elif cmd == "kendali_musik":
-                # Tombol pada pemutar musik di panel percakapan.
-                jenis = str(msg.get("jenis") or "")
-                nilai = msg.get("nilai")
-                await self._emit(
-                    Events.MUSIC_CONTROL_REQUEST, {"jenis": jenis, "nilai": nilai}
-                )
 
             elif cmd == "siap_siaga":
                 # Dipancarkan setiap pengguna berpindah halaman agar
@@ -309,6 +406,41 @@ class SelaBridge:
             if emotion:
                 self._snapshot["emotion"] = emotion
                 await self.broadcast({"t": "emotion", "emotion": emotion})
+        elif msg_type == "mcp":
+            await self._on_mcp_message(message)
+
+    async def _on_mcp_message(self, message: dict) -> None:
+        """Catat alat yang sedang dipanggil mesin AI.
+
+        Server mengirim permintaan MCP lewat ``{"type": "mcp", "payload": ...}``
+        berisi ``method: "tools/call"`` dan nama alat pada ``params.name``.
+        Antarmuka menampilkannya sebagai animasi singkat sehingga pengguna tahu
+        SELA sedang membuka data, bukan berhenti. Pemanggilan alatnya sendiri
+        tetap dikerjakan py-xiaozhi; di sini hanya diteruskan sebagai tampilan.
+        """
+        payload = message.get("payload")
+        if not isinstance(payload, dict):
+            return
+        if payload.get("method") != "tools/call":
+            return
+        params = payload.get("params") or {}
+        if not isinstance(params, dict):
+            return
+        nama = str(params.get("name") or "").strip()
+        if not nama:
+            return
+        await self.broadcast(
+            {
+                "t": "tool",
+                "name": nama,
+                "label": label_alat(nama),
+                "ts": time.time(),
+            }
+        )
+        # Alat kamera: minta antarmuka mengambil satu gambar sekaligus, supaya
+        # bingkai dari kamera peramban siap saat alat itu benar-benar jalan.
+        if nama.split(".")[-1] == "take_photo":
+            await self.minta_foto(sumber="ai")
 
     async def _on_network_error(self, error_message: Any = None) -> None:
         self._snapshot["connected"] = False
@@ -325,37 +457,6 @@ class SelaBridge:
     async def _on_protocol_disconnected(self, data: Any = None) -> None:
         self._snapshot["connected"] = False
         await self.broadcast({"t": "status", "status": "Terputus", "connected": False})
-
-    async def _on_music_state(self, data: Any) -> None:
-        try:
-            state = getattr(data, "state", None)
-            song = getattr(data, "song", "")
-            # Posisi dan durasi dikirim agar antarmuka bisa menampilkan bilah
-            # kemajuan dan tombol lompat/jeda/hentikan pada gelembung musik.
-            posisi = float(getattr(data, "position", 0) or 0)
-            durasi = float(getattr(data, "duration", 0) or 0)
-            asal_jeda = getattr(data, "pause_source", None)
-            if state:
-                await self.broadcast(
-                    {
-                        "t": "music",
-                        "state": state,
-                        "song": song,
-                        "position": round(posisi, 2),
-                        "duration": round(durasi, 2),
-                        "pauseSource": asal_jeda,
-                    }
-                )
-        except Exception as e:
-            logger.debug(f"SelaBridge: music state dilewati: {e}")
-
-    async def _on_music_lyrics(self, data: Any) -> None:
-        try:
-            text = getattr(data, "text", None)
-            if text:
-                await self.broadcast({"t": "lyrics", "text": text})
-        except Exception as e:
-            logger.debug(f"SelaBridge: lyrics dilewati: {e}")
 
     # ------------------------------------------------------------------
     # Lipsync (dari thread audio, dikirim berkala)

@@ -35,7 +35,25 @@ class BaseCamera(ABC):
 
         桌面 USB / Pi USB 走 OpenCV；Pi CSI 在 auto 模式下 OpenCV 失败后回退 picamera2。
         带超时保护，避免驱动挂死拖死线程。
+
+        补充来源（SELA）：若 antarmuka web 刚送来一帧 kamera peramban
+        （lihat ``src/ui/web/kamera_peramban.py``），该帧优先使用，避免
+        peramban dan Python 争夺同一个 kamera。Tidak ada bingkai -> jalur
+        asli py-xiaozhi dipakai apa adanya.
         """
+        try:
+            from src.ui.web.kamera_peramban import ambil_bingkai
+
+            bingkai = ambil_bingkai()
+        except Exception:
+            bingkai = None
+        if bingkai:
+            self.set_jpeg_data(bingkai)
+            logger.info(
+                f"Bingkai kamera peramban dipakai (size: {len(bingkai)} bytes)"
+            )
+            return True
+
         cfg = load_capture_config()
         # 与实例字段对齐（外部若改过 index 仍以配置为准，配置是权威）
         self.camera_index = cfg.camera_index

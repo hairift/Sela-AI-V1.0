@@ -21,41 +21,10 @@ from .config import load_music_config
 from .download import MusicDownloader
 from .local_library import LocalLibrary
 from .lyrics import fetch_kuwo_lyrics, format_lyric_display, lyric_at
-from .nada_tunggu import NadaTunggu
 from .online_search import search_song
 from .playback import PlaybackDeps, PlaybackEngine
 
 logger = get_logger()
-
-
-def _cocok_dengan_kueri(judul: str, kueri: str) -> bool:
-    """Apakah judul hasil pencarian benar-benar terkait dengan permintaan.
-
-    Kuwo adalah layanan musik Tiongkok. Untuk permintaan seperti "Sheila" ia
-    bisa mengembalikan lagu Mandarin yang tidak ada hubungannya. Pemeriksaan
-    sederhana ini memastikan setidaknya satu kata kunci muncul di judul.
-    """
-    if not judul or not kueri:
-        return False
-
-    # Kata yang terlalu umum diabaikan agar tidak selalu dianggap cocok.
-    abaikan = {
-        "lagu", "musik", "putar", "nyalakan", "mainkan", "dengar", "dengarkan",
-        "lagunya", "the", "song", "music", "play", "feat", "ft", "official",
-        "video", "lyric", "lyrics", "audio", "mp3",
-    }
-    kata = [
-        k.strip(".,!?\"'()[]").lower()
-        for k in kueri.split()
-        if len(k.strip(".,!?\"'()[]")) >= 3
-    ]
-    kata = [k for k in kata if k and k not in abaikan]
-    if not kata:
-        # Tidak ada kata kunci bermakna; terima saja hasilnya.
-        return True
-
-    judul_kecil = judul.lower()
-    return any(k in judul_kecil for k in kata)
 
 
 class MusicPlayer:
@@ -77,9 +46,6 @@ class MusicPlayer:
             )
         )
         self._bus = MusicEventBridge(self._engine, self)
-        # Nada tunggu: berbunyi selama pencarian/pengunduhan lagu berlangsung
-        # agar pengguna tahu permintaannya sedang diproses.
-        self._nada_tunggu = NadaTunggu()
 
         logger.debug("MusicPlayer 实例已创建")
 
@@ -155,8 +121,6 @@ class MusicPlayer:
         self._bus.detach()
 
     async def stop(self) -> dict:
-        # Pengguna minta berhenti: matikan juga nada tunggu bila masih berbunyi.
-        self._nada_tunggu.hentikan()
         return await self._engine.stop()
 
     async def pause(self, source: str = "manual") -> dict:
@@ -226,31 +190,9 @@ class MusicPlayer:
 
     async def search_and_play(self, song_name: str) -> dict:
         eng = self._engine
-        # Nada tunggu dinyalakan di awal pencarian. Berhenti otomatis di blok
-        # finally apa pun hasilnya (musik mulai, gagal, atau dikecualikan),
-        # sehingga pengguna selalu tahu lagunya sedang dicari.
-        self._nada_tunggu.mulai()
         try:
             self.prepare_for_io()
             hit = await search_song(song_name, self.config)
-
-            # Kuwo (layanan Tiongkok) sering mengembalikan lagu yang sama sekali
-            # tidak cocok untuk permintaan berbahasa Indonesia, mis. meminta
-            # "Sheila" tetapi yang diputar lagu Mandarin. Jadi hasil Kuwo hanya
-            # dipakai bila judulnya benar-benar memuat kata kunci pengguna.
-            if hit is not None and not _cocok_dengan_kueri(hit.display_name, song_name):
-                logger.info(
-                    f"Hasil Kuwo '{hit.display_name}' tidak cocok dengan "
-                    f"'{song_name}', beralih ke YouTube"
-                )
-                hit = None
-
-            # Cadangan: cari lewat YouTube (katalog global) lalu unduh audionya.
-            if hit is None:
-                hasil = await self._coba_youtube(song_name)
-                if hasil is not None:
-                    return hasil
-
             if hit is None:
                 return {"status": "error", "message": f"未找到歌曲: {song_name}"}
 
@@ -275,56 +217,6 @@ class MusicPlayer:
         except Exception as e:
             logger.error(f"搜索播放失败: {e}", exc_info=True)
             return {"status": "error", "message": f"操作失败: {str(e)}"}
-        finally:
-            # Apa pun hasilnya, nada tunggu harus berhenti agar tidak
-            # bertumpuk dengan musik asli atau berbunyi terus saat gagal.
-            self._nada_tunggu.hentikan()
-
-    async def _coba_youtube(self, kueri: str) -> dict | None:
-        """Cadangan: cari dan putar lagu lewat YouTube.
-
-        Mengembalikan dict hasil bila berhasil, atau None bila tidak ada lagu
-        yang cocok supaya pemanggil bisa memberi pesan yang tepat.
-        """
-        from src.mcp.tools.music import youtube as yt
-
-        if not yt.tersedia():
-            return None
-
-        logger.info(f"Kuwo tidak menemukan '{kueri}', mencoba YouTube")
-        daftar = await yt.cari_lagu(kueri, maks=3)
-        if not daftar:
-            return None
-
-        pilihan = daftar[0]
-        logger.info(f"YouTube memilih: {pilihan.judul} ({pilihan.durasi}s)")
-
-        berkas = await yt.unduh_lagu(pilihan, self.cache_dir)
-        if berkas is None:
-            return {
-                "status": "error",
-                "message": "Lagu ditemukan tetapi gagal diunduh. Periksa koneksi internet.",
-            }
-
-        eng = self._engine
-        eng.current_song = pilihan.judul
-        eng.song_id = pilihan.video_id
-        eng.total_duration = float(pilihan.durasi or 0)
-        self.current_url = str(berkas)
-
-        berhasil = await eng.play_url(str(berkas))
-        if not berhasil:
-            detail = self._downloader.last_error or "sebab tidak diketahui"
-            return {"status": "error", "message": f"Gagal memutar: {detail}"}
-
-        return {
-            "status": "success",
-            "message": f"Sedang memutar: {pilihan.judul}",
-            "song": pilihan.judul,
-            "duration": self._format_time(eng.total_duration),
-            "total_seconds": eng.total_duration,
-            "source": "YouTube",
-        }
 
     async def get_lyrics(self) -> dict:
         if not self.lyrics:

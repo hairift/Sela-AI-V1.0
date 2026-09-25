@@ -53,9 +53,6 @@ class Events:
     # 音乐控制命令（从外部控制 MusicPlayer）
     MUSIC_PAUSE_REQUEST = "music_pause_request"  # 请求暂停（如 TTS）
     MUSIC_RESUME_REQUEST = "music_resume_request"  # 请求恢复
-    # Kendali dari pemutar musik di antarmuka web: jeda, lanjut, hentikan,
-    # lompat posisi, mundur/maju 15 detik.
-    MUSIC_CONTROL_REQUEST = "music_control_request"
 
     # UI 操作（界面 → 插件）
     UI_BUTTON_PRESS = "ui_button_press"  # 手动：按下
@@ -65,11 +62,6 @@ class Events:
     UI_AUTO_START = "ui_auto_start"  # 自动：开始/停止对话
     UI_ABORT_REQUEST = "ui_abort_request"  # 打断
     UI_SEND_TEXT = "ui_send_text"  # 发文本
-    # Kirim pertanyaan panjang sebagai SUARA. Server xiaozhi menolak teks
-    # panjang pada jalur listen/detect ("Detect is only for wake words"), jadi
-    # pertanyaan panjang disintesis menjadi suara lebih dulu lalu dikirim lewat
-    # jalur audio biasa. Ditangani oleh AudioPlugin.
-    UI_SEND_LONG_TEXT = "ui_send_long_text"
     # Pastikan sambungan + sesi dengar siap. Dipancarkan antarmuka setiap
     # kali pengguna berpindah halaman agar SELA selalu siaga.
     UI_READY_REQUEST = "ui_ready_request"

@@ -1,13 +1,13 @@
 {
   "name": "sela-ai-webui",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "SELA AI WebUI - Antarmuka asisten kampus UCIC (portrait + desktop) di atas mesin AI py-xiaozhi",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test",
+    "test": "node --test \"tests/*.test.js\"",
     "preview": "vite preview"
   },
   "dependencies": {

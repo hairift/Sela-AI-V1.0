@@ -48,8 +48,6 @@ class AudioPlugin(Plugin):
             ctx.event_bus.on(
                 Events.AUDIO_DEVICES_REFRESH_REQUEST, self._on_devices_refresh_request
             )
-            # Pertanyaan panjang dikirim sebagai suara (lihat _on_send_long_text).
-            ctx.event_bus.on(Events.UI_SEND_LONG_TEXT, self._on_send_long_text)
             # codec 在 start() 再发布：MusicPlayer 在 McpPlugin.setup 中订阅 EventBus
 
         except Exception as e:
@@ -232,68 +230,6 @@ class AudioPlugin(Plugin):
             self._cmd.schedule_command_nowait(self._send_audio_async, encoded_data)
         except Exception as e:
             logger.error(f"调度音频发送失败: {e}", exc_info=True)
-
-    async def _on_send_long_text(self, data) -> None:
-        """Kirim pertanyaan panjang sebagai suara.
-
-        Server xiaozhi menolak teks panjang pada jalur ``listen/detect``
-        ("Detect is only for wake words, do not send long texts"). Teks
-        disintesis menjadi suara lebih dulu, lalu dikirim lewat jalur audio
-        biasa sehingga panjang pertanyaan tidak lagi dibatasi.
-
-        Data yang diterima: objek dengan atribut ``text`` atau dict berisi
-        kunci ``text``.
-        """
-        if self.codec is None:
-            logger.warning("Jalur suara panjang dilewati: audio belum siap")
-            return
-
-        teks = ""
-        if hasattr(data, "text"):
-            teks = str(getattr(data, "text") or "")
-        elif isinstance(data, dict):
-            teks = str(data.get("text") or "")
-        elif isinstance(data, str):
-            teks = data
-        teks = teks.strip()
-        if not teks:
-            return
-
-        from src.audio_processing import teks_ke_suara
-
-        siap, alasan = teks_ke_suara.tersedia()
-        if not siap:
-            logger.warning(f"TTS tidak tersedia ({alasan}); memakai jalur teks biasa")
-            # Mundur ke jalur lama supaya pengguna tetap dapat balasan
-            # (walau server akan menolak bila teksnya panjang).
-            if self._cmd:
-                await self._cmd.send_wake_word_detected(teks)
-            return
-
-        try:
-            # Sertakan instruksi Bahasa Indonesia agar model menjawab dalam
-            # Bahasa Indonesia (bahasa jawaban ditentukan prompt di server,
-            # yang pada akun bawaan berbahasa Mandarin). Lihat teks_ke_suara.
-            teks_ucap = teks_ke_suara.teks_dengan_instruksi(teks)
-            pcm = await teks_ke_suara.teks_ke_pcm(teks_ucap)
-        except Exception as e:
-            logger.error(f"Gagal menyintesis pertanyaan menjadi suara: {e}")
-            if self._cmd:
-                await self._cmd.send_wake_word_detected(teks)
-            return
-
-        durasi = len(pcm) / 16000.0
-        logger.info(
-            f"Mengirim pertanyaan panjang sebagai suara: {len(teks)} karakter, "
-            f"{durasi:.1f} detik audio"
-        )
-
-        # Kirim potongan demi potongan supaya audio sampai sebelum sesi ditutup.
-        try:
-            terkirim = await self.codec.kirim_pcm_ke_server(pcm)
-            logger.info(f"Audio pertanyaan terkirim: {terkirim} frame Opus")
-        except Exception as e:
-            logger.error(f"Gagal mengirim audio pertanyaan: {e}", exc_info=True)
 
     async def _send_audio_async(self, encoded_data: bytes) -> None:
         """

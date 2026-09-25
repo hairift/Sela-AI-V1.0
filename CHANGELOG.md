@@ -10,6 +10,85 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.8] - 2026-09-26
+
+Rilis ini mengembalikan mesin AI ke bentuk asli py-xiaozhi (seluruh fitur
+musik buatan SELA dihapus), lalu membangun ulang percakapan web agar terasa
+seperti asisten sungguhan: satu gelembung per jawaban, visualizer suara,
+efek mengetik, papan langkah alat, peta kampus, dan kartu kamera melayang.
+
+### Ditambahkan
+
+- **Visualizer audio di gelembung jawaban.** Selagi SELA berbicara, gelembung
+  menampilkan batang suara yang bergerak mengikuti level audio nyata (bukan
+  animasi palsu), sehingga pengguna tahu SELA sedang bersuara walau teksnya
+  belum muncul.
+- **Efek mengetik setelah suara selesai.** Teks jawaban muncul bertahap
+  hanya setelah SELA selesai berbicara, dan melanjutkan dari posisi terakhir
+  bila potongan teks berikutnya menyusul.
+- **Avatar pengguna dan SELA di setiap gelembung** (`user.png`, `sela.png`).
+- **Papan langkah alat.** Saat mesin AI memanggil alat data (kampus, cuaca,
+  pencarian, kamera), antarmuka menampilkan langkah kerja singkat beranimasi
+  sehingga pengguna melihat SELA benar-benar membuka data, bukan diam.
+- **Baris tanya lanjut di bawah setiap jawaban.** Tiga tombol pertanyaan
+  lanjutan yang mengikuti topik jawaban (kampus, cuaca, waktu, umum) dan
+  tidak mengulang pilihan yang sudah pernah tampil.
+- **Peta kampus di dalam gelembung.** Jawaban yang menyebut alamat kampus
+  menampilkan peta OpenStreetMap (tanpa kunci API) beserta tombol "Buka
+  Rute" dan "Lihat Peta".
+- **Kartu kamera melayang.** Kartu yang bisa digeser-geser untuk merekam
+  pengguna, bisa dinyalakan/dimatikan dari halaman Pengaturan. Permintaan
+  seperti "tolong foto saya" membuat SELA mengambil gambar dari kamera
+  peramban dan menampilkannya di gelembung jawaban.
+- **Batas panjang kolom obrolan (24 karakter)** beserta penghitung sisa
+  karakter. Server menolak teks panjang pada jalur `listen/detect`, jadi
+  pertanyaan panjang diarahkan ke tombol mikrofon (jalur suara tidak
+  dibatasi).
+- **Uji otomatis baru.** 24 uji Node (`npm test`) untuk aturan percakapan dan
+  perapi teks, serta 30 uji Python untuk batas teks, label alat, papan langkah
+  alat, dan kotak surat kamera peramban.
+- **Pemeriksa antarmuka `scripts/cek_percakapan_baru.py`** yang memeriksa
+  perilaku percakapan di Chrome sungguhan (13 pemeriksaan).
+
+### Diperbaiki
+
+- **Jawaban terpecah menjadi banyak gelembung.** Mesin AI mengirim jawaban
+  sepotong-sepotong (jalur suara dan jalur presenter), dan jeda antar potongan
+  bisa puluhan detik karena kalimatnya dibacakan lebih dulu. Penggabungan
+  tidak lagi memakai batas waktu, melainkan berhenti saat pengguna bicara
+  lagi, sehingga satu jawaban tampil sebagai SATU gelembung.
+- **Blok kalimat yang tercetak dua kali.** Bila mesin AI menggabungkan dua
+  hasil alat data yang isinya mirip, blok kalimat yang sama muncul dua kali
+  ("... Cirebon. ... Cirebon."). Blok ganda kini diruntuhkan saat pesan
+  digabung, termasuk untuk jawaban beraksara Han.
+- **Baris tanya lanjut tidak muncul.** Syarat tampilnya ikut menunggu
+  visualizer berhenti, padahal visualizer bisa tetap tampil setelah teks
+  selesai. Kini baris itu muncul begitu teks jawaban selesai ditampilkan.
+- **Gulir otomatis melawan pengguna.** Gulir mengikuti teks yang sedang
+  muncul, tetapi langsung berhenti bila pengguna menggeser ke atas, dan
+  tombol "ke bawah" muncul untuk kembali mengikuti.
+- **Avatar tidak ter-decode.** Avatar memakai `loading="lazy"` sehingga
+  avatar pada gelembung lama tidak pernah dimuat.
+- **Label alat bernama beralias titik** (mis. `self.application.launch`)
+  selalu jatuh ke "Menjalankan launch" karena namanya dipotong di titik
+  sebelum dicocokkan.
+
+### Diubah
+
+- **Halaman Pengaturan: bagian Musik dihapus** (platform musik dan kualitas
+  audio), tersisa delapan bagian yang semuanya berfungsi.
+
+### Dihapus
+
+- **Seluruh fitur musik buatan SELA**: pemutar musik web, nada tunggu,
+  pencarian YouTube, tool musik tambahan, dan setelan musik. Berkas mesin
+  musik dikembalikan byte-identik ke py-xiaozhi.
+- **Edge TTS** (`src/audio_processing/teks_ke_suara.py`) beserta event
+  `UI_SEND_LONG_TEXT` dan `MUSIC_CONTROL_REQUEST`. Aplikasi kini sepenuhnya
+  memakai arsitektur suara py-xiaozhi.
+
+---
+
 ## [1.0.7] - 2026-09-25
 
 Rilis ini melengkapi halaman pengaturan agar setara dengan versi QML

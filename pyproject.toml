@@ -1,6 +1,6 @@
 [project]
 name = "sela-ai"
-version = "1.0.7"
+version = "1.0.8"
 description = "SELA AI - Asisten kampus berbasis suara (antarmuka web + mesin py-xiaozhi)"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"

@@ -96,9 +96,6 @@ export const t = {
     simpan: 'Simpan',
     batal: 'Batal',
     tersimpan: 'Tersimpan',
-    sectionMusic: 'Musik',
-    musicPlatform: 'Platform Pencarian Musik',
-    musicQuality: 'Kualitas Audio',
     restartNote:
       'Sebagian perubahan (kata bangun, perangkat audio) berlaku setelah aplikasi dijalankan ulang.',
     // Gerbang admin untuk halaman pengaturan
@@ -113,16 +110,6 @@ export const t = {
     adminLock: 'Kunci lagi',
     // Catatan: nilai sebenarnya ada di sisi mesin AI, bukan di berkas ini.
     adminPasswordNote: 'Kata sandi diperiksa oleh mesin AI, bukan disimpan di antarmuka.',
-
-    // Pemutar musik
-    musicPlaying: 'Sedang diputar',
-    musicPaused: 'Dijeda',
-    musicPause: 'Jeda',
-    musicResume: 'Lanjutkan',
-    musicStop: 'Hentikan',
-    musicBack: 'Mundur 15 detik',
-    musicForward: 'Maju 15 detik',
-    musicWaiting: 'Sedang mencari musiknya...',
 
     // Uji mikrofon
     micTest: 'Uji Mikrofon',
@@ -160,6 +147,35 @@ export const t = {
     cameraTesting: 'Menguji...',
     cameraTestOk: 'Kamera berfungsi.',
     cameraTestFail: 'Uji kamera gagal dijalankan.',
+    cameraFloat: 'Kartu Kamera Melayang',
+    cameraFloatDesc:
+      'Tampilkan kartu kamera kecil yang bisa digeser. Kamera ini yang dipakai saat Anda meminta SELA melihat atau memotret Anda.',
+    cameraCard: 'Kamera',
+    cameraDrag: 'Geser kartu',
+    cameraTake: 'Ambil Foto',
+    cameraStarting: 'Menyalakan kamera...',
+    cameraNoSupport: 'Peramban ini tidak mendukung kamera.',
+    cameraDenied: 'Izin kamera ditolak.',
+    cameraFail: 'Kamera tidak bisa dibuka.',
+    photoFromCamera: 'Foto dari kamera',
+    photoTakenBy: 'SELA mengambil foto ini',
+
+    // Peta lokasi kampus
+    mapRoute: 'Buka Rute',
+    mapOpen: 'Lihat Peta',
+    mapTitle: 'Lokasi Kampus UCIC',
+
+    // Langkah alat (MCP) dan balasan lanjutan
+    toolWorking: 'SELA sedang bekerja',
+    followUp: 'TANYA LANJUT',
+    selaSpeaking: 'SELA sedang bicara',
+
+    // Batas panjang teks
+    textLimit: 'Batas teks',
+    textLimitHint:
+      'Mesin AI hanya menjawab teks pendek. Untuk pertanyaan panjang, tekan tombol mikrofon - jalur suara tidak dibatasi.',
+    textTooLong: 'Teks dipotong ke batas mesin AI',
+    voiceUnlimited: 'Bicara lewat mikrofon tanpa batas panjang',
 
     // Pintasan papan tik
     sectionShortcuts: 'Pintasan Papan Tik',
@@ -212,15 +228,13 @@ export const t = {
 
     // Pertanyaan populer.
     //
-    // Sengaja dibuat PENDEK (di bawah ambang jalur suara). Server xiaozhi
+    // Sengaja dibuat PENDEK (di bawah MAKS_PANJANG_TEKS). Server xiaozhi
     // menolak teks panjang pada jalur listen/detect dengan
     // "Detect is only for wake words, do not send long texts". Pertanyaan
     // pendek dikirim sebagai teks sehingga pertanyaannya sampai PERSIS APA
     // ADANYA ke mesin AI - penting agar tool pengetahuan kampus terpanggil
-    // dan jawabannya tepat. Pertanyaan panjang tetap bisa diketik; teks itu
-    // disintesis menjadi suara lebih dulu (lihat src/audio_processing/
-    // teks_ke_suara.py), namun hasilnya bergantung pada akurasi pengenalan
-    // suara server.
+    // dan jawabannya tepat. Pertanyaan panjang tetap bisa diajukan, tetapi
+    // lewat tombol mikrofon (jalur suara tidak punya batas panjang).
     quickReplies: [
       { label: 'Cara Daftar?', text: 'Cara daftar di UCIC?' },
       { label: 'Biaya Kuliah', text: 'Biaya kuliah UCIC?' },

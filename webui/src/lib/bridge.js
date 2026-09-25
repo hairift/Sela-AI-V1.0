@@ -7,10 +7,10 @@
  *
  * Protokol pesan (JSON, dua arah):
  *   Python -> Web : snapshot | state | chat | emotion | status | notice |
- *                   music | lyrics | music_line | button_text | auto_mode |
- *                   user_text | lip | pong
+ *                   button_text | auto_mode | user_text | lip | tool | pong
  *   Web -> Python : send_text | manual_toggle | auto_start | auto_toggle |
- *                   abort | open_settings | quit | ping
+ *                   abort | open_settings | quit | ping | kamera_bingkai |
+ *                   kamera_aktif
  */
 
 const RECONNECT_BASE_MS = 800;
@@ -109,8 +109,10 @@ export function createSelaBridge({ onEvent, onConnectionChange } = {}) {
     buttonRelease: () => kirimMentah({ t: 'button_release' }),
     autoStart: () => kirimMentah({ t: 'auto_start' }),
     siapSiaga: () => kirimMentah({ t: 'siap_siaga' }),
-    kendaliMusik: (jenis, nilai) =>
-      kirimMentah({ t: 'kendali_musik', jenis, nilai }),
+    // Satu bingkai JPEG (data URL) dari kamera peramban. Dipakai mesin AI
+    // saat memanggil alat kamera, sehingga tidak ada rebutan perangkat.
+    kirimBingkai: (data) => kirimMentah({ t: 'kamera_bingkai', data }),
+    kameraAktif: (aktif) => kirimMentah({ t: 'kamera_aktif', aktif: Boolean(aktif) }),
     autoToggle: () => kirimMentah({ t: 'auto_toggle' }),
     abort: () => kirimMentah({ t: 'abort' }),
     openSettings: () => kirimMentah({ t: 'open_settings' }),

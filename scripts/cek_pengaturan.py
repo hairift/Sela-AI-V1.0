@@ -4,7 +4,7 @@ Halaman pengaturan dilindungi kata sandi admin, sehingga uji asap biasa hanya
 melihat layar kunci - bukan isi pengaturan. Skrip ini memasukkan kata sandi,
 membuka pengaturan, lalu memastikan semua bagian yang diminta pengguna ada:
 
-  Tampilan, Mesin AI, Musik, Suara & Mikrofon, Kamera, Pintasan Papan Tik,
+  Tampilan, Mesin AI, Suara & Mikrofon, Kamera, Pintasan Papan Tik,
   Alat (MCP), Log Mesin AI, Tentang Aplikasi
 
 Sekaligus mengambil tangkapan layar sebagai bukti visual.
@@ -38,10 +38,11 @@ CHROME_KANDIDAT = [
 ]
 
 # Bagian yang HARUS ada di halaman pengaturan (Bahasa Indonesia).
+# Catatan: bagian "Musik" sudah dihapus bersama seluruh tampilan pemutar musik
+# di antarmuka web (mesin musik py-xiaozhi tetap utuh di sisi Python).
 BAGIAN_WAJIB = [
     "Tampilan",
     "Mesin AI",
-    "Musik",
     "Suara & Mikrofon",
     "Kamera",
     "Pintasan Papan Tik",

@@ -1,6 +1,5 @@
 """界面上的按键、发文本、模式切换等，转成协议调用."""
 
-import asyncio
 from typing import TYPE_CHECKING
 
 from src.constants.constants import AbortReason, DeviceState, ListeningMode
@@ -27,8 +26,6 @@ class SessionActions:
         self._cmd = cmd
         self._ui = presenter
         self._manual_recording = False
-        # EventBus diset saat subscribe(); dipakai untuk jalur suara panjang.
-        self._bus = None
         self._auto_mode = False
         # 自动模式下是否已经开始对话（按钮显示「停止对话」）
         self._auto_session_active = False
@@ -46,8 +43,6 @@ class SessionActions:
         return self._manual_recording
 
     def subscribe(self, bus) -> None:
-        # Disimpan agar send_text bisa memancarkan UI_SEND_LONG_TEXT.
-        self._bus = bus
         bus.on(Events.UI_BUTTON_PRESS, self.press)
         bus.on(Events.UI_BUTTON_RELEASE, self.release)
         bus.on(Events.UI_MANUAL_TOGGLE, self.manual_toggle)
@@ -146,30 +141,10 @@ class SessionActions:
         if not await self._ensure_listen_session():
             return
 
-        # Server xiaozhi menolak teks panjang pada jalur listen/detect
-        # ("Detect is only for wake words, do not send long texts"). Untuk
-        # pertanyaan panjang, teks disintesis menjadi suara lalu dikirim lewat
-        # jalur audio biasa sehingga panjangnya tidak lagi dibatasi.
-        from src.audio_processing import teks_ke_suara
-
-        if teks_ke_suara.perlu_jalur_suara(text):
-            logger.debug(
-                f"Pertanyaan panjang ({len(text)} karakter) -> dikirim sebagai suara"
-            )
-            await self._cmd.connect_protocol()
-            await self._cmd.start_listening(ListeningMode.MANUAL)
-            # Beri waktu server membuka kanal audio sebelum frame pertama.
-            await asyncio.sleep(0.4)
-            if self._bus is not None:
-                await self._bus.emit(
-                    Events.UI_SEND_LONG_TEXT, type("Pesan", (), {"text": text})()
-                )
-            # Tunggu audio terkirim habis, baru tutup sesi rekaman.
-            durasi = min(30.0, max(1.5, len(text) / 14.0))
-            await asyncio.sleep(durasi)
-            await self._cmd.stop_listening()
-            return
-
+        # Panjang teks sudah dibatasi di antarmuka (lihat MAKS_PANJANG_TEKS di
+        # webui), sehingga jalur listen/detect milik server selalu menerima
+        # teks yang bisa dijawab. Pertanyaan sepanjang apa pun tetap aman lewat
+        # jalur suara karena tidak melewati batas ini.
         await self._cmd.send_wake_word_detected(text)
 
     async def press(self, _data=None) -> None:

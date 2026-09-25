@@ -18,7 +18,7 @@ from typing import Any, Optional
 from aiohttp import WSMsgType, web
 
 from src.logging import get_logger
-from src.ui.web.bridge import SelaBridge
+from src.ui.web.bridge import MAKS_PANJANG_TEKS, SelaBridge
 from src.utils.resource_finder import get_app_root
 
 logger = get_logger()
@@ -296,8 +296,6 @@ class SelaWebServer:
         "wakeWordText": "WAKE_WORD_OPTIONS.WAKE_WORD",
         "wakeWordThreshold": "WAKE_WORD_OPTIONS.KEYWORDS_THRESHOLD",
         "serverUrl": "SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL",
-        "musicPlatform": "MUSIC.DEFAULT_PLATFORM",
-        "musicQuality": "MUSIC.DEFAULT_QUALITY",
         # Kamera (setara CameraTab di py-xiaozhi)
         "cameraIndex": "CAMERA.camera_index",
         "cameraBackend": "CAMERA.backend",
@@ -328,8 +326,8 @@ class SelaWebServer:
                 ),
                 "version": SystemConstants.APP_VERSION,
                 "appName": SystemConstants.APP_DISPLAY_NAME,
-                "musicPlatform": cfg.get_config("MUSIC.DEFAULT_PLATFORM", "kw") or "kw",
-                "musicQuality": cfg.get_config("MUSIC.DEFAULT_QUALITY", "320k") or "320k",
+                # Batas panjang teks yang boleh diketik di antarmuka.
+                "maxTextLength": MAKS_PANJANG_TEKS,
                 # --- Kamera ---
                 "cameraIndex": int(cfg.get_config("CAMERA.camera_index", 0) or 0),
                 "cameraBackend": cfg.get_config("CAMERA.backend", "auto") or "auto",

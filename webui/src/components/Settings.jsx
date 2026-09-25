@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { t } from '../lib/translations'
+import { KUNCI_KAMERA } from '../lib/percakapan'
 
 const IconChevronLeft = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -63,9 +64,6 @@ function Sakelar({ aktif, onChange, disabled }) {
 // sehingga kata apa pun bisa ditambahkan lewat tokennya.
 const KATA_BANGUN = ['SELA', 'Hai Hai']
 
-const PLATFORM_MUSIK = ['kw', 'kg', 'tx', 'wy', 'mg']
-const KUALITAS_MUSIK = ['128k', '192k', '320k', 'flac']
-
 // Mesin kamera (backend OpenCV). "auto" membiarkan OpenCV memilih sendiri.
 const BACKEND_KAMERA = [
   { value: 'auto', label: 'Otomatis' },
@@ -98,6 +96,14 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
   // Log waktu nyata dari mesin AI.
   const [logBaris, setLogBaris] = useState([])
   const [logJalur, setLogJalur] = useState('')
+  // Setelan tampilan yang disimpan di peramban (bukan di config mesin AI).
+  const [kameraMelayang, setKameraMelayang] = useState(() => {
+    try {
+      return localStorage.getItem(KUNCI_KAMERA) !== '0'
+    } catch (_) {
+      return true
+    }
+  })
   const [logMemuat, setLogMemuat] = useState(false)
   // Hasil uji mikrofon.
   const [ujiMicMemuat, setUjiMicMemuat] = useState(false)
@@ -411,37 +417,6 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
           </Baris>
         </Kartu>
 
-        <Kartu judul={t.id.sectionMusic}>
-          <Baris label={t.id.musicPlatform}>
-            <select
-              value={config?.musicPlatform || 'kw'}
-              disabled={!config}
-              onChange={(e) => simpan({ musicPlatform: e.target.value })}
-              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
-            >
-              {PLATFORM_MUSIK.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </Baris>
-          <Baris label={t.id.musicQuality}>
-            <select
-              value={config?.musicQuality || '320k'}
-              disabled={!config}
-              onChange={(e) => simpan({ musicQuality: e.target.value })}
-              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
-            >
-              {KUALITAS_MUSIK.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
-          </Baris>
-        </Kartu>
-
         <Kartu judul={t.id.sectionAudio}>
           <Baris label={t.id.inputDevice}>
             <select
@@ -508,6 +483,19 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
         </Kartu>
 
         <Kartu judul={t.id.sectionCamera}>
+          <Baris label={t.id.cameraFloat} keterangan={t.id.cameraFloatDesc}>
+            <Sakelar
+              aktif={kameraMelayang}
+              onChange={(v) => {
+                setKameraMelayang(v)
+                try {
+                  localStorage.setItem(KUNCI_KAMERA, v ? '1' : '0')
+                } catch (_) {
+                  // diabaikan
+                }
+              }}
+            />
+          </Baris>
           <Baris label={t.id.cameraDevice} keterangan={t.id.cameraDeviceDesc}>
             <select
               value={String(config?.cameraIndex ?? 0)}
