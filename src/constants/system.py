@@ -21,7 +21,7 @@ class SystemConstants:
     # Informasi aplikasi
     APP_NAME = "sela-ai"  # 程序标识名（ASCII，用于目录、配置、bundle_id）
     APP_DISPLAY_NAME = "SELA AI"  # 显示名称（用于窗口标题、Launchpad、安装器 UI）
-    APP_VERSION = "1.0.0"
+    APP_VERSION = "1.0.7"
     BOARD_TYPE = "bread-compact-wifi"
 
     # Bahasa antarmuka bawaan (hanya Bahasa Indonesia)

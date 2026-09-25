@@ -19,18 +19,76 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Create Release with Release Drafter
-        uses: release-drafter/release-drafter@v6
+      # Catatan rilis diambil dari CHANGELOG.md, bukan dari label pull request.
+      # Alasan: perubahan proyek ini dikirim langsung ke branch main, bukan
+      # lewat pull request yang berlabel. Pembuat catatan rilis berbasis label
+      # karena itu selalu menghasilkan "No changes" - catatan rilis jadi kosong
+      # dan tidak berguna bagi pengguna.
+      - name: Ambil catatan rilis dari CHANGELOG.md
+        id: catatan
+        env:
+          VERSI: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+          import sys
+
+          versi = os.environ["VERSI"]
+          berkas = pathlib.Path("CHANGELOG.md")
+          keluaran = pathlib.Path("catatan-rilis.md")
+
+          if not berkas.is_file():
+              print("CHANGELOG.md tidak ditemukan; memakai catatan otomatis GitHub.")
+              sys.exit(0)
+
+          teks = berkas.read_text(encoding="utf-8")
+          # Cocokkan judul "## [1.0.7]" atau "## 1.0.7" beserta isinya sampai
+          # judul versi berikutnya.
+          pola = re.compile(
+              r"^##\s*\[?%s\]?[^\n]*\n(.*?)(?=^##\s|\Z)" % re.escape(versi),
+              re.M | re.S,
+          )
+          cocok = pola.search(teks)
+          if not cocok or not cocok.group(1).strip():
+              print(f"Bagian versi {versi} tidak ada di CHANGELOG.md; "
+                    "memakai catatan otomatis GitHub.")
+              sys.exit(0)
+
+          isi = cocok.group(1).strip()
+          keluaran.write_text(isi + "\n", encoding="utf-8")
+          print(f"Catatan rilis v{versi} diambil dari CHANGELOG.md "
+                f"({len(isi)} karakter).")
+          PY
+          if [ -f catatan-rilis.md ]; then
+            echo "ada=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ada=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Bila CHANGELOG.md belum memuat versi ini, jatuh ke catatan otomatis
+      # GitHub (daftar commit sejak rilis sebelumnya) supaya catatan rilis
+      # tidak pernah kosong.
+      - name: Buat rilis dari CHANGELOG.md
+        if: steps.catatan.outputs.ada == 'true'
+        uses: softprops/action-gh-release@v2
         with:
-          version: ${{ steps.version.outputs.version }}
-          publish: true
-          footer: |
-            
-            ## Documentation
-            
-            - [在线文档](https://huangjunsen0406.github.io/py-xiaozhi/)
+          tag_name: v${{ steps.version.outputs.version }}
+          name: SELA AI v${{ steps.version.outputs.version }}
+          body_path: catatan-rilis.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Buat rilis dari catatan otomatis (cadangan)
+        if: steps.catatan.outputs.ada != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: SELA AI v${{ steps.version.outputs.version }}
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

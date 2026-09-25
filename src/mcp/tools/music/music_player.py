@@ -21,6 +21,7 @@ from .config import load_music_config
 from .download import MusicDownloader
 from .local_library import LocalLibrary
 from .lyrics import fetch_kuwo_lyrics, format_lyric_display, lyric_at
+from .nada_tunggu import NadaTunggu
 from .online_search import search_song
 from .playback import PlaybackDeps, PlaybackEngine
 
@@ -76,6 +77,9 @@ class MusicPlayer:
             )
         )
         self._bus = MusicEventBridge(self._engine, self)
+        # Nada tunggu: berbunyi selama pencarian/pengunduhan lagu berlangsung
+        # agar pengguna tahu permintaannya sedang diproses.
+        self._nada_tunggu = NadaTunggu()
 
         logger.debug("MusicPlayer 实例已创建")
 
@@ -151,6 +155,8 @@ class MusicPlayer:
         self._bus.detach()
 
     async def stop(self) -> dict:
+        # Pengguna minta berhenti: matikan juga nada tunggu bila masih berbunyi.
+        self._nada_tunggu.hentikan()
         return await self._engine.stop()
 
     async def pause(self, source: str = "manual") -> dict:
@@ -220,6 +226,10 @@ class MusicPlayer:
 
     async def search_and_play(self, song_name: str) -> dict:
         eng = self._engine
+        # Nada tunggu dinyalakan di awal pencarian. Berhenti otomatis di blok
+        # finally apa pun hasilnya (musik mulai, gagal, atau dikecualikan),
+        # sehingga pengguna selalu tahu lagunya sedang dicari.
+        self._nada_tunggu.mulai()
         try:
             self.prepare_for_io()
             hit = await search_song(song_name, self.config)
@@ -265,6 +275,10 @@ class MusicPlayer:
         except Exception as e:
             logger.error(f"搜索播放失败: {e}", exc_info=True)
             return {"status": "error", "message": f"操作失败: {str(e)}"}
+        finally:
+            # Apa pun hasilnya, nada tunggu harus berhenti agar tidak
+            # bertumpuk dengan musik asli atau berbunyi terus saat gagal.
+            self._nada_tunggu.hentikan()
 
     async def _coba_youtube(self, kueri: str) -> dict | None:
         """Cadangan: cari dan putar lagu lewat YouTube.

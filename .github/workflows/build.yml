@@ -160,8 +160,13 @@ jobs:
           # menjalankan npm install; ESLint ada di node_modules/.bin.
           # Menangkap kelas galat yang membuat halaman putih: variabel dipakai
           # di JSX tetapi tidak pernah didefinisikan (ReferenceError).
+          #
+          # PENTING: "--ext .js,.jsx" wajib. Tanpa itu ESLint hanya memeriksa
+          # berkas .js dan MELEWATI seluruh berkas .jsx - padahal justru di
+          # sanalah galat halaman putih itu berada. Dulu langkah ini lulus
+          # padahal berkas tampilan tidak pernah diperiksa sama sekali.
           cd webui
-          ./node_modules/.bin/eslint src/ || {
+          ./node_modules/.bin/eslint src --ext .js,.jsx || {
             echo "::error::ESLint menemukan masalah pada antarmuka. Perbaiki dulu."
             exit 1
           }

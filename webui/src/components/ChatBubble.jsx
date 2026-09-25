@@ -7,6 +7,9 @@ const URL_PATTERN = /(https?:\/\/[^\s]+)/g
 const TRAILING_PUNCTUATION = /[.,!?;:)\]]$/
 const SELA_ALIASES = new Set(['cela', 'sela', 'zela', 'selah', 'sella', 'selak'])
 const BOLD_PATTERN = /(\*\*[^*]+\*\*)/g
+// Miring: satu bintang mengapit teks (*miring*). Dipisah dari tebal (**tebal**)
+// supaya keduanya bisa dipakai bersamaan tanpa saling merusak.
+const ITALIC_PATTERN = /(\*[^*\n]+\*)/g
 const PROTECTED_TOKEN_PREFIX = '__SELA_PROTECTED_'
 const FOLLOW_UP_PATTERN = /(?:^|\s)((?:\[[^\]\n]*\?]\s*(?:\|\s*)?){1,2})\s*$/
 
@@ -219,7 +222,7 @@ function renderInlineMarkdown(text = '', keyPrefix = 'inline') {
     return part.value
       .split(BOLD_PATTERN)
       .filter(Boolean)
-      .map((segment, segmentIndex) => {
+      .flatMap((segment, segmentIndex) => {
         const boldMatch = segment.match(/^\*\*(.*)\*\*$/)
         if (boldMatch) {
           return (
@@ -229,11 +232,29 @@ function renderInlineMarkdown(text = '', keyPrefix = 'inline') {
           )
         }
 
-        return (
-          <span key={`${keyPrefix}-text-${partIndex}-${segmentIndex}`}>
-            {segment}
-          </span>
-        )
+        // Sisa teks (bukan tebal) masih bisa memuat penanda miring.
+        return segment
+          .split(ITALIC_PATTERN)
+          .filter(Boolean)
+          .map((potongan, italicIndex) => {
+            const italicMatch = potongan.match(/^\*(.*)\*$/)
+            if (italicMatch) {
+              return (
+                <em
+                  key={`${keyPrefix}-italic-${partIndex}-${segmentIndex}-${italicIndex}`}
+                  className="italic"
+                >
+                  {italicMatch[1]}
+                </em>
+              )
+            }
+
+            return (
+              <span key={`${keyPrefix}-text-${partIndex}-${segmentIndex}-${italicIndex}`}>
+                {potongan}
+              </span>
+            )
+          })
       })
   })
 }
@@ -392,7 +413,6 @@ function ChatSuggestionLayout({ children, suggestions = [] }) {
 export default function ChatBubble({
   role,
   text,
-  lang = 'id',
   isLoading = false,
   isNew = false,
   isSpeaking = false,

@@ -50,6 +50,75 @@ def _resolve_dist_dir() -> Path:
     return get_app_root() / "webui" / "dist"
 
 
+# Keterangan pintasan dalam Bahasa Indonesia, dipetakan dari nama pintasan.
+# Dipakai saat menampilkan, sehingga config lama yang masih berbahasa Mandarin
+# (dari bawaan py-xiaozhi) tetap tampil dalam Bahasa Indonesia.
+_KETERANGAN_PINTASAN = {
+    "MANUAL_PRESS": "Tahan untuk bicara",
+    "AUTO_TOGGLE": "Percakapan otomatis",
+    "ABORT": "Hentikan percakapan",
+    "MODE_TOGGLE": "Ganti mode",
+    "WINDOW_TOGGLE": "Tampilkan/sembunyikan jendela",
+}
+
+
+def _ringkas_pintasan(cfg) -> list[dict]:
+    """Ringkas pintasan papan tik dari config untuk ditampilkan di pengaturan.
+
+    py-xiaozhi menyimpan tiap pintasan sebagai {modifier, key, description}.
+    Keterangannya dipetakan ke Bahasa Indonesia lewat ``nama`` agar config lama
+    (berbahasa Mandarin) tidak menampilkan teks Mandarin ke pengguna.
+    """
+    hasil: list[dict] = []
+    try:
+        blok = cfg.get_config("SHORTCUTS", {}) or {}
+        for nama, nilai in blok.items():
+            if nama == "ENABLED" or not isinstance(nilai, dict):
+                continue
+            mod = str(nilai.get("modifier", "") or "").strip()
+            tombol = str(nilai.get("key", "") or "").strip()
+            if not tombol:
+                continue
+            keterangan = _KETERANGAN_PINTASAN.get(nama)
+            if not keterangan:
+                asli = str(nilai.get("description", "") or "")
+                # Buang keterangan beraksara Han agar tidak tampil ke pengguna.
+                keterangan = (
+                    nama
+                    if any("\u4e00" <= ch <= "\u9fff" for ch in asli)
+                    else (asli or nama)
+                )
+            hasil.append(
+                {
+                    "nama": nama,
+                    "modifier": mod,
+                    "key": tombol,
+                    "keterangan": keterangan,
+                }
+            )
+    except Exception as e:
+        logger.debug(f"Gagal membaca pintasan: {e}")
+    return hasil
+
+
+def _daftar_mcp_mati(cfg) -> list[str]:
+    """Daftar nama tool MCP yang dimatikan (MCP_TOOLS.DISABLED)."""
+    try:
+        from src.mcp.tool_catalog import normalize_disabled
+
+        return normalize_disabled(cfg.get_config("MCP_TOOLS.DISABLED", []) or [])
+    except Exception as e:
+        logger.debug(f"Gagal membaca daftar MCP: {e}")
+        return []
+
+
+def _daftar_kamera() -> list[dict]:
+    """Pembungkus tipis agar mudah diganti saat pengujian."""
+    from src.mcp.tools.camera.diagnostik import daftar_kamera
+
+    return daftar_kamera()
+
+
 class _PengukurLevel:
     """Penampung level audio dari aliran mikrofon aplikasi.
 
@@ -137,6 +206,8 @@ class SelaWebServer:
         app.router.add_get("/api/log", self._log_handler)
         app.router.add_get("/api/devices", self._devices_handler)
         app.router.add_get("/api/audio/uji-mikrofon", self._uji_mikrofon_handler)
+        app.router.add_route("*", "/api/camera", self._camera_handler)
+        app.router.add_route("*", "/api/mcp/tools", self._mcp_tools_handler)
         app.router.add_get("/", self._index_handler)
         # Aset statis (JS/CSS/model 3D).
         if self._dist.is_dir():
@@ -227,6 +298,13 @@ class SelaWebServer:
         "serverUrl": "SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL",
         "musicPlatform": "MUSIC.DEFAULT_PLATFORM",
         "musicQuality": "MUSIC.DEFAULT_QUALITY",
+        # Kamera (setara CameraTab di py-xiaozhi)
+        "cameraIndex": "CAMERA.camera_index",
+        "cameraBackend": "CAMERA.backend",
+        # Pintasan papan tik (setara ShortcutsTab)
+        "shortcutsEnabled": "SHORTCUTS.ENABLED",
+        # MCP per-tool: daftar tool yang DIMATIKAN (setara McpToolsTab)
+        "mcpDisabled": "MCP_TOOLS.DISABLED",
     }
 
     async def _config_get_handler(self, request: web.Request) -> web.StreamResponse:
@@ -252,11 +330,111 @@ class SelaWebServer:
                 "appName": SystemConstants.APP_DISPLAY_NAME,
                 "musicPlatform": cfg.get_config("MUSIC.DEFAULT_PLATFORM", "kw") or "kw",
                 "musicQuality": cfg.get_config("MUSIC.DEFAULT_QUALITY", "320k") or "320k",
+                # --- Kamera ---
+                "cameraIndex": int(cfg.get_config("CAMERA.camera_index", 0) or 0),
+                "cameraBackend": cfg.get_config("CAMERA.backend", "auto") or "auto",
+                "cameraDevice": cfg.get_config("CAMERA.device", "") or "",
+                # --- Pintasan papan tik ---
+                "shortcutsEnabled": bool(cfg.get_config("SHORTCUTS.ENABLED", True)),
+                "shortcuts": _ringkas_pintasan(cfg),
+                # --- MCP per-tool ---
+                "mcpDisabled": _daftar_mcp_mati(cfg),
             }
             return web.json_response({"ok": True, "config": data})
         except Exception as e:
             logger.warning(f"SelaWebServer: gagal membaca config: {e}")
             return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    async def _camera_handler(self, request: web.Request) -> web.StreamResponse:
+        """Daftar kamera + uji kamera (setara CameraTab py-xiaozhi).
+
+        GET  -> daftar kamera yang terdeteksi beserta pilihan sekarang.
+        POST -> uji kamera: buka, ambil satu bingkai, laporkan hasilnya.
+        """
+        if request.method == "POST":
+            try:
+                from src.mcp.tools.camera.diagnostik import uji_kamera
+
+                hasil = await asyncio.to_thread(uji_kamera)
+                return web.json_response(hasil)
+            except Exception as e:
+                logger.warning(f"Uji kamera gagal: {e}")
+                return web.json_response(
+                    {"ok": False, "error": f"Uji kamera gagal: {e}"}, status=500
+                )
+
+        try:
+            from src.utils.config_manager import get_config
+
+            cfg = get_config()
+            kamera = await asyncio.to_thread(_daftar_kamera)
+            return web.json_response(
+                {
+                    "ok": True,
+                    "cameras": kamera,
+                    "selected": int(cfg.get_config("CAMERA.camera_index", 0) or 0),
+                    "backend": cfg.get_config("CAMERA.backend", "auto") or "auto",
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Gagal membaca daftar kamera: {e}")
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    async def _mcp_tools_handler(self, request: web.Request) -> web.StreamResponse:
+        """Katalog tool MCP + sakelar aktif/nonaktif per tool.
+
+        GET  -> katalog tool (dikelompokkan) beserta daftar tool yang dimatikan.
+        POST -> simpan daftar tool yang dimatikan ke MCP_TOOLS.DISABLED.
+        """
+        try:
+            from src.mcp.tool_catalog import (
+                builtin_catalog_rows,
+                discover_plugin_catalog_rows,
+            )
+            from src.utils.config_manager import get_config
+
+            cfg = get_config()
+
+            if request.method == "POST":
+                try:
+                    payload = await request.json()
+                except Exception:
+                    return web.json_response(
+                        {"ok": False, "error": "JSON tidak valid"}, status=400
+                    )
+                mati = payload.get("disabled") if isinstance(payload, dict) else None
+                if not isinstance(mati, list):
+                    return web.json_response(
+                        {"ok": False, "error": "Field 'disabled' harus berupa daftar"},
+                        status=400,
+                    )
+                from src.mcp.tool_catalog import normalize_disabled
+
+                bersih = normalize_disabled(mati)
+                cfg.update_config("MCP_TOOLS.DISABLED", bersih)
+                logger.info(f"Setelan MCP diperbarui: {len(bersih)} tool dimatikan")
+                # Beri tahu mesin AI agar sesi disambung ulang dengan daftar baru.
+                if self._on_config_changed:
+                    await self._on_config_changed()
+                return web.json_response({"ok": True, "disabled": bersih})
+
+            katalog = builtin_catalog_rows()
+            try:
+                katalog += discover_plugin_catalog_rows()
+            except Exception as e:
+                logger.debug(f"Katalog plugin dilewati: {e}")
+
+            return web.json_response(
+                {
+                    "ok": True,
+                    "tools": katalog,
+                    "disabled": _daftar_mcp_mati(cfg),
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Gagal membaca katalog MCP: {e}")
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+
 
     # Kata sandi admin untuk membuka halaman pengaturan. Nilainya sengaja
     # TIDAK ditanam di kode antarmuka (JavaScript bisa dibaca siapa pun),

@@ -1,4 +1,15 @@
-"""天气 MCP 工具注册（当前 mock，待接真 API）."""
+"""Registrasi tool cuaca SELA (data nyata Open-Meteo, Bahasa Indonesia).
+
+Catatan penting soal nama tool: versi mock py-xiaozhi memakai nama
+``get_weather`` yang BENTROK dengan tool ``get_weather`` milik server AI.
+Bentrok nama membuat server menolak SELURUH sesi
+("Duplicate tool names: get_weather") sehingga SELA tidak menjawab sama sekali.
+Karena itu tool di sini memakai nama berbahasa Indonesia yang unik:
+``cuaca_sekarang`` dan ``prakiraan_cuaca``.
+
+Deskripsi wajib Bahasa Indonesia - deskripsi berbahasa Mandarin membuat model
+tidak memanggil tool untuk permintaan berbahasa Indonesia.
+"""
 
 from __future__ import annotations
 
@@ -7,37 +18,45 @@ from collections.abc import Callable
 from src.logging import get_logger
 from src.mcp.tooling import McpTool, Property, PropertyList, PropertyType
 
-from .service import get_forecast_payload, get_weather_payload
+from .service import cuaca_sekarang, prakiraan_cuaca
 
 logger = get_logger()
 
 
 def register_weather_tools(add_tool: Callable[[McpTool], None]) -> None:
-    """向 McpServer 注册天气工具."""
+    """Daftarkan tool cuaca nyata ke McpServer."""
 
     tools: list[McpTool] = [
         McpTool(
-            "get_weather",
+            "cuaca_sekarang",
             (
-                "获取指定城市的当前天气。"
-                "参数: city - 城市名称（如：北京、上海、广州）"
+                "WAJIB dipanggil setiap kali pengguna menanyakan CUACA SAAT INI "
+                "di suatu tempat, misalnya 'bagaimana cuaca di Cirebon', "
+                "'apakah hari ini hujan', 'berapa suhu sekarang', "
+                "'cuaca hari ini di Jakarta'. Jangan mengarang data cuaca - "
+                "selalu panggil tool ini karena datanya diambil langsung dari "
+                "layanan cuaca resmi (Open-Meteo). "
+                "Parameter: kota - nama kota (mis. Cirebon, Jakarta, Bandung)."
             ),
             PropertyList(
-                [Property("city", PropertyType.STRING, default_value="北京")]
+                [Property("kota", PropertyType.STRING, default_value="Cirebon")]
             ),
-            get_weather_payload,
+            cuaca_sekarang,
         ),
         McpTool(
-            "get_forecast",
+            "prakiraan_cuaca",
             (
-                "获取指定城市的天气预报。"
-                "参数: city - 城市名称, days - 预报天数(1-7天)"
+                "WAJIB dipanggil setiap kali pengguna menanyakan PRAKIRAAN CUACA "
+                "BEBERAPA HARI ke depan, misalnya 'prakiraan cuaca besok', "
+                "'cuaca seminggu ke depan di Bandung', 'apakah besok hujan'. "
+                "Data diambil dari layanan cuaca resmi (Open-Meteo). "
+                "Parameter: kota - nama kota, hari - jumlah hari (1-7)."
             ),
             PropertyList(
                 [
-                    Property("city", PropertyType.STRING, default_value="北京"),
+                    Property("kota", PropertyType.STRING, default_value="Cirebon"),
                     Property(
-                        "days",
+                        "hari",
                         PropertyType.INTEGER,
                         default_value=3,
                         min_value=1,
@@ -45,10 +64,13 @@ def register_weather_tools(add_tool: Callable[[McpTool], None]) -> None:
                     ),
                 ]
             ),
-            get_forecast_payload,
+            prakiraan_cuaca,
         ),
     ]
 
     for tool in tools:
         add_tool(tool)
-    logger.info("已注册 %d 个天气 MCP 工具（register_weather_tools, mock）", len(tools))
+    logger.info(
+        "Terdaftar %d tool cuaca nyata (Open-Meteo, Bahasa Indonesia)",
+        len(tools),
+    )

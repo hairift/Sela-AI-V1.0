@@ -191,6 +191,19 @@ def _report_fatal(error: BaseException) -> None:
 
 
 if __name__ == "__main__":
+    # Mode --doctor: hanya memeriksa lingkungan lalu keluar.
+    #
+    # Sengaja ditaruh SEBELUM blok try/finally utama. Blok itu diakhiri
+    # `finally: sys.exit(exit_code)`, dan kode di dalam `finally` MENIMPA kode
+    # keluar apa pun yang sudah ditetapkan di dalam `try`. Akibatnya
+    # `sys.exit(run_diagnostics())` selalu berubah menjadi keluar dengan kode
+    # 1 - walaupun semua pemeriksaan lolos - sehingga skrip yang memeriksa
+    # kode keluar tidak bisa membedakan doctor yang berhasil dari yang gagal.
+    if getattr(_args, "doctor", False):
+        from src.utils.diagnostics import run_diagnostics
+
+        sys.exit(run_diagnostics())
+
     exit_code = 1
     try:
         # 使用已解析的参数
@@ -201,12 +214,6 @@ if __name__ == "__main__":
             os.environ["SELA_PORTRAIT"] = "1"
         if getattr(args, "kiosk", False):
             os.environ["SELA_KIOSK"] = "1"
-
-        # 环境自检模式：只诊断、不启动应用
-        if getattr(args, "doctor", False):
-            from src.utils.diagnostics import run_diagnostics
-
-            sys.exit(run_diagnostics())
 
         # 检测Wayland环境并设置Qt平台插件配置
         import os

@@ -141,6 +141,40 @@ export const t = {
     logEmpty: 'Belum ada catatan.',
     logLoading: 'Memuat log...',
 
+    // Peredam gema
+    aecLabel: 'Peredam Gema (AEC)',
+    aecDesc: 'Mengurangi gema pengeras suara agar mikrofon tidak terganggu.',
+
+    // Kamera
+    sectionCamera: 'Kamera',
+    cameraDevice: 'Perangkat Kamera',
+    cameraDeviceDesc: 'Kamera yang dipakai untuk fitur penglihatan (vision).',
+    cameraNone: 'Tidak ada kamera terdeteksi',
+    cameraLoading: 'Mendeteksi kamera...',
+    cameraBackend: 'Mesin Kamera',
+    cameraBackendDesc: 'Pilih "Otomatis" bila tidak yakin.',
+    cameraTest: 'Uji Kamera',
+    cameraTestDesc:
+      'Buka kamera dan ambil satu bingkai untuk memastikan kamera berfungsi.',
+    cameraTestBtn: 'Mulai Uji',
+    cameraTesting: 'Menguji...',
+    cameraTestOk: 'Kamera berfungsi.',
+    cameraTestFail: 'Uji kamera gagal dijalankan.',
+
+    // Pintasan papan tik
+    sectionShortcuts: 'Pintasan Papan Tik',
+    shortcutsEnabled: 'Aktifkan Pintasan',
+    shortcutsEnabledDesc: 'Kendalikan asisten lewat pintasan papan tik.',
+
+    // Tool MCP
+    sectionMcp: 'Alat (MCP)',
+    mcpDesc:
+      'Matikan alat yang tidak dipakai. Alat yang dimatikan tidak ditawarkan ke mesin AI.',
+    mcpSearchPlaceholder: 'Cari alat...',
+    mcpDisabledCount: 'alat dimatikan',
+    mcpNone: 'Tidak ada alat terdeteksi.',
+    mcpNotFound: 'Alat tidak ditemukan.',
+
     autoConversation: 'Percakapan Otomatis',
     autoConversationDesc: 'Mendengarkan dan menjawab tanpa menekan tombol.',
     voiceReply: 'Balasan Suara',

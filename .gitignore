@@ -14,6 +14,12 @@ venv/
 #   cd webui && npm install && npm run build
 webui/node_modules/
 webui/dist/
+# Direktori sementara untuk membangun ulang antarmuka (penjaga lingkungan
+# memblokir penghapusan isi dist/, jadi build diarahkan ke dist_baru dulu
+# lalu ditukar). Jangan ikut dilacak.
+webui/dist_baru/
+# Berkas sementara vite (berubah setiap kali build) - jangan dilacak.
+webui/vite.config.js.timestamp-*.mjs
 
 # ── Biner yang disuntikkan saat CI ───────────────────────────
 libs/ffmpeg/

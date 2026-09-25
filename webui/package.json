@@ -1,7 +1,7 @@
 {
   "name": "sela-ai-webui",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "SELA AI WebUI - Antarmuka asisten kampus UCIC (portrait + desktop) di atas mesin AI py-xiaozhi",
   "type": "module",
   "scripts": {

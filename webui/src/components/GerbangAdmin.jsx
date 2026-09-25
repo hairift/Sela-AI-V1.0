@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 /**
  * Gerbang kata sandi untuk halaman pengaturan.
  *

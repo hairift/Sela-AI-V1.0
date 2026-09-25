@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 /**
  * Pemutar musik SELA di dalam panel percakapan.
  *

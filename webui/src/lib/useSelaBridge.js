@@ -39,6 +39,7 @@ const PETA_STATE = {
   idle: 'idle',
   listening: 'listening',
   speaking: 'speaking',
+  thinking: 'thinking',
   connecting: 'thinking',
   connecting_state: 'thinking',
 }
@@ -257,10 +258,13 @@ export default function useSelaBridge() {
 
   // State avatar yang ditampilkan: selagi menunggu jawaban, tampilkan
   // "thinking" agar avatar bergerak dan tidak terlihat diam.
+  //
+  // Catatan: state "listening" TIDAK dikecualikan. Saat pengguna selesai
+  // bicara, mesin AI mengembalikan state ke "listening" selagi memproses
+  // jawaban - bila listening dikecualikan, animasi Thinking tidak akan
+  // pernah tampil pada momen paling penting itu.
   const stateTampil =
-    menungguJawaban && stateAvatar !== 'speaking' && stateAvatar !== 'listening'
-      ? 'thinking'
-      : stateAvatar
+    menungguJawaban && stateAvatar !== 'speaking' ? 'thinking' : stateAvatar
 
   return {
     terhubung,

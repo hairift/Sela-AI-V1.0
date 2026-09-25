@@ -169,25 +169,15 @@ class McpServer:
         try:
             from src.mcp.tools.weather import register_weather_tools
 
-            # Tool cuaca bawaan py-xiaozhi masih MOCK: datanya hardcoded
-            # (kondisi "晴朗" berbahasa Mandarin, ada TODO memanggil API asli).
-            # Dua masalah bila tetap didaftarkan:
-            #   1. Namanya "get_weather" BENTROK dengan tool get_weather milik
-            #      server AI -> server menolak sesi dengan
-            #      "Duplicate tool names: get_weather" dan SELA tidak menjawab.
-            #   2. Datanya palsu, sehingga SELA akan menyebut cuaca yang salah.
-            # Server AI sudah menyediakan cuaca sungguhan, jadi mock ini
-            # dilewati. Aktifkan kembali hanya untuk pengembangan:
-            #   set SELA_AKTIFKAN_CUACA_MOCK=1
-            import os
-
-            if os.environ.get("SELA_AKTIFKAN_CUACA_MOCK") == "1":
-                _pasang("cuaca", register_weather_tools, self.add_tool)
-            else:
-                logger.info(
-                    "Tool cuaca mock dilewati (bentrok dengan get_weather milik "
-                    "server AI dan datanya palsu)"
-                )
+            # Tool cuaca NYATA (Open-Meteo, gratis tanpa API key) dengan nama
+            # Bahasa Indonesia: "cuaca_sekarang" dan "prakiraan_cuaca".
+            #
+            # Versi mock py-xiaozhi memakai nama "get_weather" yang BENTROK
+            # dengan tool get_weather milik server AI -> server menolak seluruh
+            # sesi ("Duplicate tool names: get_weather") dan SELA tidak
+            # menjawab. Datanya juga hardcoded/palsu. Nama Indonesia di sini
+            # menghindari bentrok sekaligus memberi data sungguhan.
+            _pasang("cuaca", register_weather_tools, self.add_tool)
         except Exception as e:
             logger.error(f"Gagal memuat tool MCP 'cuaca': {e}", exc_info=True)
 

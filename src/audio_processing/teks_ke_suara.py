@@ -44,6 +44,38 @@ AMBANG_TEKS_PANJANG = 24
 # Batas aman panjang teks yang disintesis (menghindari audio sangat panjang).
 MAKS_KARAKTER = 600
 
+# Instruksi singkat yang diucapkan sebelum pertanyaan panjang.
+#
+# Bahasa jawaban model ditentukan oleh prompt agent di sisi server, bukan oleh
+# aplikasi. Pada akun bawaan, prompt-nya berbahasa Mandarin sehingga SELA
+# kadang menjawab dalam Bahasa Mandarin walau pertanyaannya Bahasa Indonesia.
+# Prompt LLM tidak bisa diubah dari sisi klien, tetapi karena pertanyaan panjang
+# dikirim sebagai SUARA (lalu ditranskrip server), menambahkan satu kalimat
+# instruksi Bahasa Indonesia di depan pertanyaan membuat model menjawab dalam
+# Bahasa Indonesia.
+#
+# Nonaktifkan dengan SELA_PAKSA_JAWAB_INDONESIA=0 bila prompt server sudah
+# diatur sendiri.
+INSTRUKSI_JAWAB_INDONESIA = "Tolong jawab dengan Bahasa Indonesia."
+
+
+def _paksa_indonesia_aktif() -> bool:
+    return os.environ.get("SELA_PAKSA_JAWAB_INDONESIA", "1") != "0"
+
+
+def teks_dengan_instruksi(teks: str) -> str:
+    """Tambahkan instruksi Bahasa Indonesia di depan pertanyaan (bila aktif).
+
+    Hanya dipakai pada jalur suara; pertanyaan pendek (yang lewat jalur teks
+    dengan batas ~24 karakter) tidak disentuh karena akan melebihi batas.
+    """
+    teks = (teks or "").strip()
+    if not teks or not _paksa_indonesia_aktif():
+        return teks
+    if teks.startswith(INSTRUKSI_JAWAB_INDONESIA):
+        return teks
+    return f"{INSTRUKSI_JAWAB_INDONESIA} {teks}"
+
 
 class TeksKeSuaraError(RuntimeError):
     """Gagal mengubah teks menjadi suara."""

@@ -27,6 +27,90 @@ logger = get_logger()
 # Batas durasi: hindari mengunduh kompilasi berdurasi berjam-jam.
 MAKS_DURASI_DETIK = 900
 
+# Kata pada judul yang menandakan hasil BUKAN lagu aslinya. Kompilasi remix
+# sering muncul lebih dulu di YouTube walau kata kunci penyanyi ada di
+# judulnya (mis. "Hitam Putih - REMIX ... Sheila On 7 ..."), sehingga pengguna
+# mendengar lagu yang salah.
+_KATA_TIDAK_DIINGINKAN = (
+    "remix",
+    "megamix",
+    "mega mix",
+    "medley",
+    "compilation",
+    "kompilasi",
+    "karaoke",
+    "instrumental",
+    "cover",
+    "sped up",
+    "slowed",
+    "reverb",
+    "nightcore",
+    "tiktok",
+    "playlist",
+    "full album",
+    "nonstop",
+    "dj ",
+    "mix ",
+    "mix)",
+    "live",
+)
+
+# Kata yang terlalu umum untuk dipakai menilai relevansi.
+_KATA_UMUM = {
+    "lagu", "musik", "music", "song", "songs", "putar", "putarkan", "nyalakan",
+    "mainkan", "dengar", "dengarkan", "the", "play", "feat", "ft", "official",
+    "audio", "video", "lyric", "lyrics", "mp3", "and", "dan", "on", "by",
+}
+
+
+def _kata_kunci(kueri: str) -> list[str]:
+    """Ambil kata kunci bermakna dari permintaan pengguna."""
+    hasil = []
+    for k in (kueri or "").split():
+        bersih = k.strip(".,!?\"'()[]-").lower()
+        if len(bersih) >= 3 and bersih not in _KATA_UMUM:
+            hasil.append(bersih)
+    return hasil
+
+
+def skor_relevansi(judul: str, kueri: str, durasi: int = 0) -> float:
+    """Nilai kecocokan judul dengan permintaan (makin besar makin cocok).
+
+    Dipakai untuk memilih hasil terbaik dan menolak kompilasi remix/karaoke.
+    """
+    if not judul:
+        return -99.0
+    kecil = judul.lower()
+    skor = 0.0
+
+    kata = _kata_kunci(kueri)
+    if kata:
+        cocok = sum(1 for k in kata if k in kecil)
+        skor += 2.0 * (cocok / len(kata))
+        # Semua kata kunci muncul -> beri bonus.
+        if cocok == len(kata):
+            skor += 1.5
+    else:
+        skor += 0.5  # tidak ada kata kunci bermakna; netral saja
+
+    for buruk in _KATA_TIDAK_DIINGINKAN:
+        if buruk in kecil:
+            skor -= 1.5
+
+    # Judul yang jauh lebih panjang dari permintaan biasanya kompilasi.
+    if len(judul) > max(40, len(kueri) * 4):
+        skor -= 1.0
+
+    # Durasi wajar untuk satu lagu (60 detik - 10 menit) lebih disukai.
+    if durasi:
+        if 60 <= durasi <= 600:
+            skor += 0.5
+        elif durasi > 900:
+            skor -= 1.0
+
+    return skor
+
+
 _OPSI_CARI = {
     "quiet": True,
     "no_warnings": True,
@@ -72,7 +156,11 @@ def tersedia() -> bool:
 
 
 async def cari_lagu(kueri: str, maks: int = 3) -> list[HasilYouTube]:
-    """Cari lagu di YouTube. Mengembalikan daftar kosong bila gagal."""
+    """Cari lagu di YouTube. Mengembalikan daftar kosong bila gagal.
+
+    Hasil diurutkan berdasarkan relevansi (lihat :func:`skor_relevansi`) supaya
+    lagu yang benar-benar diminta muncul lebih dulu, bukan kompilasi remix.
+    """
     if not tersedia():
         logger.info("Pencarian YouTube dilewati: yt-dlp tidak terpasang")
         return []
@@ -80,10 +168,13 @@ async def cari_lagu(kueri: str, maks: int = 3) -> list[HasilYouTube]:
     def _cari() -> list[HasilYouTube]:
         import yt_dlp
 
-        hasil: list[HasilYouTube] = []
+        # Ambil lebih banyak kandidat daripada yang dibutuhkan agar bisa
+        # dipilih yang paling relevan.
+        jumlah = max(maks, 8)
+        hasil: list[tuple[float, HasilYouTube]] = []
         try:
             with yt_dlp.YoutubeDL(_OPSI_CARI) as ydl:
-                info = ydl.extract_info(f"ytsearch{maks}:{kueri}", download=False)
+                info = ydl.extract_info(f"ytsearch{jumlah}:{kueri}", download=False)
         except Exception as e:
             logger.warning(f"Pencarian YouTube gagal: {e}")
             return []
@@ -97,15 +188,27 @@ async def cari_lagu(kueri: str, maks: int = 3) -> list[HasilYouTube]:
             vid = str(entri.get("id") or "")
             if not vid:
                 continue
-            hasil.append(
-                HasilYouTube(
-                    video_id=vid,
-                    judul=str(entri.get("title") or ""),
-                    durasi=durasi,
-                    url=f"https://www.youtube.com/watch?v={vid}",
-                )
+            judul = str(entri.get("title") or "")
+            lagu = HasilYouTube(
+                video_id=vid,
+                judul=judul,
+                durasi=durasi,
+                url=f"https://www.youtube.com/watch?v={vid}",
             )
-        return hasil
+            hasil.append((skor_relevansi(judul, kueri, durasi), lagu))
+
+        if not hasil:
+            return []
+
+        hasil.sort(key=lambda pasangan: pasangan[0], reverse=True)
+        teratas = hasil[:maks]
+        logger.info(
+            "YouTube: kandidat terbaik '%s' (skor %.2f) dari %d hasil",
+            teratas[0][1].judul,
+            teratas[0][0],
+            len(hasil),
+        )
+        return [lagu for _, lagu in teratas]
 
     return await asyncio.to_thread(_cari)
 

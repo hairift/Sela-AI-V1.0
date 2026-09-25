@@ -271,7 +271,11 @@ class AudioPlugin(Plugin):
             return
 
         try:
-            pcm = await teks_ke_suara.teks_ke_pcm(teks)
+            # Sertakan instruksi Bahasa Indonesia agar model menjawab dalam
+            # Bahasa Indonesia (bahasa jawaban ditentukan prompt di server,
+            # yang pada akun bawaan berbahasa Mandarin). Lihat teks_ke_suara.
+            teks_ucap = teks_ke_suara.teks_dengan_instruksi(teks)
+            pcm = await teks_ke_suara.teks_ke_pcm(teks_ucap)
         except Exception as e:
             logger.error(f"Gagal menyintesis pertanyaan menjadi suara: {e}")
             if self._cmd:

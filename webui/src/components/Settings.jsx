@@ -7,7 +7,7 @@
  * serta diterapkan tanpa memulai ulang aplikasi.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { t } from '../lib/translations'
 
 const IconChevronLeft = () => (
@@ -66,6 +66,27 @@ const KATA_BANGUN = ['SELA', 'Hai Hai']
 const PLATFORM_MUSIK = ['kw', 'kg', 'tx', 'wy', 'mg']
 const KUALITAS_MUSIK = ['128k', '192k', '320k', 'flac']
 
+// Mesin kamera (backend OpenCV). "auto" membiarkan OpenCV memilih sendiri.
+const BACKEND_KAMERA = [
+  { value: 'auto', label: 'Otomatis' },
+  { value: 'v4l2', label: 'V4L2 (Linux)' },
+  { value: 'dshow', label: 'DirectShow (Windows)' },
+  { value: 'avfoundation', label: 'AVFoundation (macOS)' },
+]
+
+// Nama kelompok tool MCP dalam Bahasa Indonesia. Kelompok berasal dari nama
+// direktori di src/mcp/tools/, jadi peta ini yang menerjemahkannya.
+const LABEL_KELOMPOK_MCP = {
+  app: 'Aplikasi',
+  camera: 'Kamera',
+  kampus: 'Pengetahuan Kampus',
+  music: 'Musik',
+  screenshot: 'Tangkapan Layar',
+  volume: 'Volume Suara',
+  weather: 'Cuaca',
+  websearch: 'Pencarian Web',
+}
+
 export default function Settings({ onBack, theme, setTheme, terhubung = false }) {
   const [config, setConfig] = useState(null)
   const [perangkat, setPerangkat] = useState({ input: [], output: [] })
@@ -81,6 +102,104 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
   // Hasil uji mikrofon.
   const [ujiMicMemuat, setUjiMicMemuat] = useState(false)
   const [ujiMicHasil, setUjiMicHasil] = useState(null)
+  // --- Kamera (setara CameraTab py-xiaozhi) ---
+  const [kamera, setKamera] = useState([])
+  const [kameraMemuat, setKameraMemuat] = useState(false)
+  const [ujiKameraMemuat, setUjiKameraMemuat] = useState(false)
+  const [ujiKameraHasil, setUjiKameraHasil] = useState(null)
+  // --- Tool MCP (setara McpToolsTab py-xiaozhi) ---
+  const [mcpTools, setMcpTools] = useState([])
+  const [mcpMemuat, setMcpMemuat] = useState(false)
+  const [mcpCari, setMcpCari] = useState('')
+
+  const muatKamera = async () => {
+    setKameraMemuat(true)
+    try {
+      const r = await fetch('/api/camera')
+      const d = await r.json()
+      if (d.ok) setKamera(Array.isArray(d.cameras) ? d.cameras : [])
+    } catch (_) {
+      // Biarkan daftar lama tetap tampil.
+    } finally {
+      setKameraMemuat(false)
+    }
+  }
+
+  const ujiKamera = async () => {
+    setUjiKameraMemuat(true)
+    setUjiKameraHasil(null)
+    try {
+      const r = await fetch('/api/camera', { method: 'POST' })
+      const d = await r.json()
+      if (d.ok) setUjiKameraHasil({ baik: true, pesan: d.pesan || t.id.cameraTestOk })
+      else setUjiKameraHasil({ baik: false, pesan: d.error || t.id.cameraTestFail })
+    } catch (_) {
+      setUjiKameraHasil({ baik: false, pesan: t.id.cameraTestFail })
+    } finally {
+      setUjiKameraMemuat(false)
+    }
+  }
+
+  const muatMcp = async () => {
+    setMcpMemuat(true)
+    try {
+      const r = await fetch('/api/mcp/tools')
+      const d = await r.json()
+      if (d.ok) setMcpTools(Array.isArray(d.tools) ? d.tools : [])
+    } catch (_) {
+      // Biarkan katalog lama tetap tampil.
+    } finally {
+      setMcpMemuat(false)
+    }
+  }
+
+  // Nyalakan/matikan satu tool MCP. Daftar yang disimpan adalah daftar tool
+  // yang DIMATIKAN, sama seperti MCP_TOOLS.DISABLED di py-xiaozhi.
+  const ubahToolMcp = async (nama, aktifkan) => {
+    const lama = Array.isArray(config?.mcpDisabled) ? config.mcpDisabled : []
+    const baru = aktifkan
+      ? lama.filter((n) => n !== nama)
+      : Array.from(new Set([...lama, nama]))
+    setConfig((c) => ({ ...c, mcpDisabled: baru }))
+    setMenyimpan(true)
+    try {
+      const r = await fetch('/api/mcp/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disabled: baru }),
+      })
+      const d = await r.json()
+      if (!d.ok) setGalat(d.error || 'Gagal menyimpan tool MCP')
+      else setGalat('')
+    } catch (_) {
+      setGalat('Gagal menyimpan tool MCP.')
+    } finally {
+      setMenyimpan(false)
+    }
+  }
+
+  // Kelompokkan tool MCP untuk ditampilkan, sekaligus saring dengan kata cari.
+  const kelompokMcp = useMemo(() => {
+    const q = mcpCari.trim().toLowerCase()
+    const cocok = mcpTools.filter((tl) => {
+      if (!q) return true
+      return (
+        String(tl.name || '').toLowerCase().includes(q) ||
+        String(tl.label || '').toLowerCase().includes(q)
+      )
+    })
+    const peta = new Map()
+    for (const tl of cocok) {
+      const g = tl.group || 'lainnya'
+      if (!peta.has(g)) peta.set(g, [])
+      peta.get(g).push(tl)
+    }
+    return Array.from(peta.entries()).map(([nama, tools]) => ({
+      nama,
+      label: LABEL_KELOMPOK_MCP[nama] || nama.replace(/_/g, ' '),
+      tools: tools.slice().sort((a, b) => String(a.name).localeCompare(String(b.name))),
+    }))
+  }, [mcpTools, mcpCari])
 
   const ujiMikrofon = async () => {
     setUjiMicMemuat(true)
@@ -132,13 +251,19 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
         setAlamatServer(dCfg.config?.serverUrl || '')
       } else setGalat(dCfg.error || 'Gagal memuat pengaturan')
       if (dDev.ok) setPerangkat(dDev.devices)
+      // Katalog kamera dan tool MCP dimuat terpisah agar kegagalan salah
+      // satunya tidak membuat seluruh halaman pengaturan gagal dibuka.
+      muatKamera()
+      muatMcp()
     } catch (e) {
       setGalat('Tidak bisa menghubungi mesin AI. Pastikan aplikasi SELA sedang berjalan.')
     }
   }
 
+  // Dimuat sekali saat halaman pengaturan dibuka.
   useEffect(() => {
     muat()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const simpan = async (updates) => {
@@ -373,13 +498,147 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
               </p>
             </div>
           )}
-          <Baris label="Echo Cancellation (AEC)" keterangan="Mengurangi gema pengeras suara agar mikrofon tidak terganggu.">
+          <Baris label={t.id.aecLabel} keterangan={t.id.aecDesc}>
             <Sakelar
               aktif={Boolean(config?.aec)}
               disabled={!config}
               onChange={(v) => simpan({ aec: v })}
             />
           </Baris>
+        </Kartu>
+
+        <Kartu judul={t.id.sectionCamera}>
+          <Baris label={t.id.cameraDevice} keterangan={t.id.cameraDeviceDesc}>
+            <select
+              value={String(config?.cameraIndex ?? 0)}
+              disabled={!config || kamera.length === 0}
+              onChange={(e) => simpan({ cameraIndex: Number(e.target.value) })}
+              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
+            >
+              {kamera.length === 0 && (
+                <option value={String(config?.cameraIndex ?? 0)}>
+                  {kameraMemuat ? t.id.cameraLoading : t.id.cameraNone}
+                </option>
+              )}
+              {kamera.map((k) => (
+                <option key={k.key ?? k.index} value={String(k.index ?? 0)}>
+                  {k.name}
+                </option>
+              ))}
+            </select>
+          </Baris>
+          <Baris label={t.id.cameraBackend} keterangan={t.id.cameraBackendDesc}>
+            <select
+              value={config?.cameraBackend || 'auto'}
+              disabled={!config}
+              onChange={(e) => simpan({ cameraBackend: e.target.value })}
+              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
+            >
+              {BACKEND_KAMERA.map((b) => (
+                <option key={b.value} value={b.value}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </Baris>
+          <Baris label={t.id.cameraTest} keterangan={t.id.cameraTestDesc}>
+            <button
+              onClick={ujiKamera}
+              disabled={ujiKameraMemuat}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-40"
+            >
+              {ujiKameraMemuat ? t.id.cameraTesting : t.id.cameraTestBtn}
+            </button>
+          </Baris>
+          {ujiKameraHasil && (
+            <div className="px-5 pb-3">
+              <p
+                className={`text-[11px] leading-relaxed rounded-lg px-3 py-2 ${
+                  ujiKameraHasil.baik
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {ujiKameraHasil.pesan}
+              </p>
+            </div>
+          )}
+        </Kartu>
+
+        <Kartu judul={t.id.sectionShortcuts}>
+          <Baris label={t.id.shortcutsEnabled} keterangan={t.id.shortcutsEnabledDesc}>
+            <Sakelar
+              aktif={Boolean(config?.shortcutsEnabled)}
+              disabled={!config}
+              onChange={(v) => simpan({ shortcutsEnabled: v })}
+            />
+          </Baris>
+          {(config?.shortcuts || []).map((s) => (
+            <Baris key={s.nama} label={s.keterangan}>
+              <kbd className="text-[11px] font-mono px-2 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-slate-700">
+                {[s.modifier, s.key].filter(Boolean).join(' + ')}
+              </kbd>
+            </Baris>
+          ))}
+        </Kartu>
+
+        <Kartu judul={t.id.sectionMcp}>
+          <div className="px-5 pb-4 space-y-3">
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+              {t.id.mcpDesc}
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={mcpCari}
+                onChange={(e) => setMcpCari(e.target.value)}
+                placeholder={t.id.mcpSearchPlaceholder}
+                className="flex-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
+              />
+              <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                {(config?.mcpDisabled || []).length} {t.id.mcpDisabledCount}
+              </span>
+            </div>
+            {mcpMemuat && mcpTools.length === 0 ? (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">{t.id.logLoading}</p>
+            ) : mcpTools.length === 0 ? (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">{t.id.mcpNone}</p>
+            ) : kelompokMcp.length === 0 ? (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">{t.id.mcpNotFound}</p>
+            ) : (
+              <div className="space-y-3">
+                {kelompokMcp.map((grup) => (
+                  <div key={grup.nama}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-1.5">
+                      {grup.label}
+                    </p>
+                    <div className="space-y-1.5">
+                      {grup.tools.map((tl) => {
+                        const mati = (config?.mcpDisabled || []).includes(tl.name)
+                        return (
+                          <div key={tl.name} className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
+                                {tl.label || tl.name}
+                              </p>
+                              <p className="text-[10px] text-gray-400 dark:text-gray-500 font-mono truncate">
+                                {tl.name}
+                              </p>
+                            </div>
+                            <Sakelar
+                              aktif={!mati}
+                              disabled={!config}
+                              onChange={(v) => ubahToolMcp(tl.name, v)}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Kartu>
 
         <Kartu judul={t.id.logTitle}>
