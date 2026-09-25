@@ -1,0 +1,88 @@
+name: Sinkronkan Catatan Rilis dari CHANGELOG
+
+# Menyamakan catatan rilis GitHub yang SUDAH ADA dengan isi CHANGELOG.md.
+#
+# Latar belakang: rilis v1.0.0 sampai v1.0.6 dibuat memakai pembuat catatan
+# rilis berbasis label pull request. Karena perubahan proyek ini dikirim
+# langsung ke branch main (bukan lewat pull request berlabel), semua rilis
+# lama berbunyi "No changes" dan masih membawa footer dokumentasi py-xiaozhi.
+#
+# Alur ini memperbaikinya memakai GITHUB_TOKEN bawaan runner, jadi tidak perlu
+# token pribadi siapa pun. Hanya rilis yang catatannya masih "No changes" atau
+# kosong yang disentuh; rilis yang sudah benar dilewati.
+#
+# Dijalankan otomatis saat berkas ini berubah, dan bisa dijalankan manual dari
+# tab Actions bila CHANGELOG.md diperbarui dan ingin disinkronkan ulang.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sinkron-catatan-rilis.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sinkron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Perbarui catatan rilis lama dari CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import subprocess
+
+          changelog = pathlib.Path("CHANGELOG.md")
+          if not changelog.is_file():
+              print("CHANGELOG.md tidak ditemukan; tidak ada yang dikerjakan.")
+              raise SystemExit(0)
+
+          teks = changelog.read_text(encoding="utf-8")
+          pola = re.compile(
+              r"^##\s*\[?(\d+\.\d+\.\d+)\]?[^\n]*\n(.*?)(?=^##\s|\Z)",
+              re.M | re.S,
+          )
+
+          jumlah_diperbarui = 0
+          for cocok in pola.finditer(teks):
+              versi = cocok.group(1)
+              isi = cocok.group(2).strip()
+              tag = f"v{versi}"
+              if not isi:
+                  print(f"{tag}: bagian CHANGELOG kosong, dilewati.")
+                  continue
+
+              lihat = subprocess.run(
+                  ["gh", "release", "view", tag, "--json", "body"],
+                  capture_output=True, text=True,
+              )
+              if lihat.returncode != 0:
+                  print(f"{tag}: rilis tidak ada, dilewati.")
+                  continue
+
+              badan = lihat.stdout or ""
+              rusak = ("No changes" in badan) or ('"body":""' in badan.replace(" ", ""))
+              if not rusak:
+                  print(f"{tag}: catatan sudah benar, dilewati.")
+                  continue
+
+              edit = subprocess.run(
+                  ["gh", "release", "edit", tag, "--notes-file", "-"],
+                  input=isi, capture_output=True, text=True,
+              )
+              if edit.returncode == 0:
+                  jumlah_diperbarui += 1
+                  print(f"{tag}: catatan rilis DIPERBARUI.")
+              else:
+                  print(f"{tag}: GAGAL - {(edit.stderr or '').strip()[:300]}")
+
+          print(f"Selesai. {jumlah_diperbarui} catatan rilis diperbarui.")
+          PY
