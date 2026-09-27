@@ -300,6 +300,34 @@ jobs:
               --clean
           fi
 
+      - name: Verify native companion libraries are bundled
+        shell: bash
+        run: |
+          # sherpa_onnx memuat pustaka aslinya SAAT BERJALAN, bukan lewat tabel
+          # impor .pyd/.so, sehingga PyInstaller tidak bisa menemukannya sendiri.
+          # Tanpa hook pyinstaller_hooks/hook-sherpa_onnx.py ketiga pustaka ini
+          # tidak ikut terbundel, lalu aplikasi mati saat memuat wake word.
+          # Di Windows dibangun --windowed sehingga pengguna tidak melihat pesan
+          # apa pun - aplikasi hanya "tidak mau terbuka". Pemeriksaan ini pernah
+          # absen dan membuat rilis v1.0.8 rusak di Windows.
+          set -uo pipefail
+          gagal=0
+          for pola in "*onnxruntime.*" "*sherpa-onnx-c-api.*" "*sherpa-onnx-cxx-api.*"; do
+            berkas="$(find dist -iname "$pola" 2>/dev/null | head -n 1 || true)"
+            if [ -z "$berkas" ]; then
+              echo "::error::Pustaka pendamping hilang dari paket: $pola"
+              gagal=1
+            else
+              echo "OK   $berkas"
+            fi
+          done
+          if [ "$gagal" != "0" ]; then
+            echo "Paket akan gagal saat memuat wake word."
+            echo "Periksa build.json (additional_hooks_dir) dan"
+            echo "pyinstaller_hooks/hook-sherpa_onnx.py."
+            exit 1
+          fi
+
       - name: Verify macOS binary architecture
         if: runner.os == 'macOS'
         shell: bash

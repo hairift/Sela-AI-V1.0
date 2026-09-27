@@ -1,0 +1,20 @@
+CI: gagalkan build bila pustaka pendamping sherpa tidak terbundel
+
+Penyebab rilis v1.0.8 rusak di Windows adalah tiga pustaka asli sherpa_onnx
+(onnxruntime, sherpa-onnx-c-api, sherpa-onnx-cxx-api) tidak ikut terbundel.
+Penyebabnya: sherpa_onnx memuatnya saat berjalan, bukan lewat tabel impor
+.pyd/.so, sehingga PyInstaller tidak bisa menemukannya sendiri dan perlu hook
+khusus.
+
+Selama ini CI tidak memeriksa hal itu, jadi paket yang rusak bisa lolos ke
+halaman rilis tanpa satu pun tanda peringatan. Di Windows aplikasi dibangun
+--windowed sehingga pengguna tidak melihat pesan apa pun - aplikasinya hanya
+"tidak mau terbuka", dan penyebabnya baru ketahuan setelah ditelusuri manual.
+
+Menambahkan langkah verifikasi tepat setelah "Build package": mencari
+*onnxruntime.*, *sherpa-onnx-c-api.*, dan *sherpa-onnx-cxx-api.* di dalam
+dist/ dan menghentikan build bila salah satunya tidak ada. Pola nama dibuat
+netral platform (cocok untuk .dll, .so, maupun .dylib).
+
+Sudah diuji dua arah memakai dist/ lokal: lulus saat ketiga pustaka ada, dan
+gagal saat diarahkan ke folder yang tidak memilikinya.
