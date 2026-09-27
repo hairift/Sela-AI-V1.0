@@ -291,19 +291,25 @@ class WebActivation(BaseActivation):
         app.router.add_get("/status", self._status_json)
         app.router.add_post("/lewati", self._lewati)
 
-        self._port = _cari_port()
+        port = _cari_port()
         self._runner = web.AppRunner(app)
         await self._runner.setup()
-        site = web.TCPSite(self._runner, "127.0.0.1", self._port)
+        site = web.TCPSite(self._runner, "127.0.0.1", port)
         await site.start()
 
-        # Baca port nyata bila OS yang memilih (port 0).
-        if self._port == 0:
+        # ``_port`` menandai bahwa server SUDAH mendengarkan, jadi ia baru
+        # diisi setelah ``site.start()`` selesai. Bila diisi lebih dulu,
+        # ``ui.url`` (dan uji yang menunggu ``_port``) bisa dipakai selagi
+        # belum ada yang mendengarkan - sumber kegagalan "connection refused"
+        # yang jarang dan sulit ditiru. Pola yang sama dipakai SelaWebServer.
+        if port == 0:
+            # Baca port nyata bila OS yang memilih (port 0).
             try:
                 sock = site._server.sockets[0]
-                self._port = int(sock.getsockname()[1])
+                port = int(sock.getsockname()[1])
             except Exception:
                 pass
+        self._port = port
 
         logger.info(f"Server aktivasi web berjalan di {self.url}")
 

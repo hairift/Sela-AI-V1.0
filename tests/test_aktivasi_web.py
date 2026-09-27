@@ -89,7 +89,24 @@ def test_run_menyalakan_server_lalu_selesai():
     """Server benar-benar hidup saat menunggu, dan mati setelah selesai."""
 
     async def skenario():
-        ui = _buat(sukses=True)
+        gerbang = asyncio.Event()
+
+        class _LayananBergerbang(_LayananPalsu):
+            """Aktivasi yang menunggu izin uji.
+
+            ``_JEDA_TAMPIL_SUKSES`` disetel 0 di uji ini, jadi tanpa gerbang
+            server bisa ditutup sebelum uji sempat membaca ``/status`` - sumber
+            kegagalan "connection refused" yang jarang dan sulit ditiru.
+            """
+
+            async def activate(self, data=None):
+                self.dipanggil = True
+                await gerbang.wait()
+                return self.sukses
+
+        ui = WebActivation(
+            _LayananBergerbang(sukses=True), {"need_activation_ui": True}
+        )
         # Percepat jeda tampil hasil supaya uji tidak lambat.
         import src.ui.web.activation as mod
 
@@ -107,7 +124,9 @@ def test_run_menyalakan_server_lalu_selesai():
             url = ui.url
             assert url.startswith("http://127.0.0.1:")
 
-            # Server benar-benar melayani permintaan.
+            # Server benar-benar melayani permintaan. Gerbang belum dibuka,
+            # jadi server pasti masih hidup di sini - uji tidak balapan dengan
+            # penutupan server.
             from aiohttp import ClientSession
 
             async with ClientSession() as sesi:
@@ -116,6 +135,7 @@ def test_run_menyalakan_server_lalu_selesai():
                     isi = await r.json()
                     assert isi["kode"] == "123456"
 
+            gerbang.set()
             hasil = await tugas
             assert hasil is True
             assert ui._runner is None, "server tidak dimatikan setelah aktivasi"
