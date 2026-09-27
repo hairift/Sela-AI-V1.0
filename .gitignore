@@ -50,5 +50,11 @@ libs/ffmpeg/
 reports/
 .claude/settings.local.json
 
+# Berkas pesan commit sementara (dibuat sebelum `git commit -F`, lalu dihapus).
+# Jangan sampai ikut ter-commit saat memakai `git add -A`.
+.git_commit_msg.txt
+/tmp_verif/
+.tmp_verif/
+
 # Situs dokumentasi hasil build
 /_site
