@@ -64,6 +64,8 @@ export default function ChatPanel({
   terhubung = false,
   volume = 0,
   langkahAlat = [],
+  lampiran = null,
+  onHapusLampiran,
 }) {
   const [nilai, setNilai] = useState('')
   const [fokus, setFokus] = useState(false)
@@ -72,6 +74,7 @@ export default function ChatPanel({
 
   const gulirRef = useRef(null)
   const chipRef = useRef(null)
+  const inputRef = useRef(null)
   const diBawahRef = useRef(true)
   diBawahRef.current = diBawah
   // Pertanyaan yang sudah pernah ditampilkan, supaya tanya lanjut tidak
@@ -149,10 +152,11 @@ export default function ChatPanel({
   const kirim = (e) => {
     if (e?.preventDefault) e.preventDefault()
     const teks = nilai.trim()
-    if (!teks) return
+    // Foto terlampir boleh dikirim tanpa teks; selebihnya butuh teks.
+    if (!teks && !lampiran) return
     setNilai('')
     setDiBawah(true)
-    onKirim?.(teks)
+    onKirim?.(teks || t.id.photoAttached)
   }
 
   const kirimCepat = useCallback(
@@ -163,12 +167,20 @@ export default function ChatPanel({
     [onKirim],
   )
 
+  // Fokuskan kotak teks begitu ada foto terlampir supaya pengguna langsung
+  // bisa mengetik pertanyaannya.
+  useEffect(() => {
+    if (lampiran) inputRef.current?.focus()
+  }, [lampiran])
+
   const geserChip = (arah) => chipRef.current?.scrollBy({ left: arah * 160, behavior: 'smooth' })
 
   const sedangMendengar = stateAvatar === 'listening'
   const sisa = MAKS_PANJANG_TEKS - nilai.length
   const hampirPenuh = sisa <= 4
   const sedangBekerja = langkahAlat.length > 0
+  // Foto terlampir saja sudah cukup untuk mengirim (tanpa teks).
+  const adaIsi = Boolean(nilai.trim() || lampiran)
 
   return (
     <>
@@ -367,8 +379,36 @@ export default function ChatPanel({
 
         {/* Kolom input */}
         <form onSubmit={kirim} className="relative w-full pt-1 shrink-0">
+          {/* Foto terlampir: tidak langsung jadi gelembung percakapan, tetapi
+              menunggu di sini supaya pengguna bisa mengetik pertanyaannya. */}
+          {lampiran && (
+            <div
+              data-lampiran="1"
+              className="flex items-center gap-2 mb-1.5 px-2 py-1.5 rounded-xl bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60"
+            >
+              <img
+                src={lampiran}
+                alt={t.id.photoAttached}
+                className="w-9 h-9 rounded-lg object-cover border border-white/70 dark:border-slate-700 shrink-0"
+              />
+              <span className="flex-1 min-w-0 text-[10px] leading-snug text-blue-800 dark:text-blue-200 truncate">
+                {t.id.photoAskHint}
+              </span>
+              <button
+                type="button"
+                onClick={() => onHapusLampiran?.()}
+                className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-blue-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all"
+                title={t.id.photoRemove}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.6} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
           <input
             id="kolom-pesan"
+            ref={inputRef}
             type="text"
             value={nilai}
             maxLength={MAKS_PANJANG_TEKS}
@@ -387,18 +427,18 @@ export default function ChatPanel({
           />
           <button
             id="tombol-kirim"
-            type={nilai.trim() ? 'submit' : 'button'}
-            onClick={nilai.trim() ? undefined : onRekam}
+            type={adaIsi ? 'submit' : 'button'}
+            onClick={adaIsi ? undefined : onRekam}
             className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl flex items-center justify-center shadow-md transition-all active:scale-95 ${
-              nilai.trim()
+              adaIsi
                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
                 : sedangMendengar
                   ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse ring-2 ring-red-400'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
-            title={nilai.trim() ? t.id.sendText : sedangMendengar ? t.id.listeningClickToSend : t.id.speakViaMic}
+            title={adaIsi ? t.id.sendText : sedangMendengar ? t.id.listeningClickToSend : t.id.speakViaMic}
           >
-            {nilai.trim() ? (
+            {adaIsi ? (
               <IconSend />
             ) : sedangMendengar ? (
               <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">

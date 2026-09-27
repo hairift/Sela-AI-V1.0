@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
+from src.audio_processing.kata_kunci import saring_kata_kunci
 from src.constants.constants import AudioConfig
 from src.logging import get_logger
 from src.utils.config_manager import ConfigManager, get_config
@@ -135,6 +136,20 @@ class WakeWordDetector:
             # 将 tokens.txt 复制到 ASCII 安全路径的用户目录下。
             tokens_path = self._ensure_ascii_path(tokens_path, lang)
 
+            # PENTING: saring berkas kata kunci SEBELUM membuat KeywordSpotter.
+            # sherpa-onnx memvalidasi isi berkas di C++ dan memanggil exit(-1)
+            # bila ada baris tidak valid (token tak dikenal atau label berisi
+            # spasi). Proses Python mati seketika — try/except di sini TIDAK
+            # mampu menangkapnya. Karena itu baris rusak harus dibuang lebih
+            # dulu. Lihat src/audio_processing/kata_kunci.py.
+            keywords_path = self._siapkan_kata_kunci(keywords_path, tokens_path)
+            if keywords_path is None:
+                logger.error(
+                    "Berkas kata kunci tidak punya baris yang valid; "
+                    "deteksi kata kunci dimatikan (aplikasi tetap berjalan)"
+                )
+                return False
+
             logger.info(f"加载 KeywordSpotter 模型: {self._model_dir}")
 
             with self._onnx_lock:
@@ -163,6 +178,54 @@ class WakeWordDetector:
         except Exception as e:
             logger.error(f"加载模型失败: {e}", exc_info=True)
             return False
+
+    def _siapkan_kata_kunci(self, keywords_path: Path, tokens_path: Path) -> Optional[Path]:
+        """Saring berkas kata kunci agar sherpa-onnx tidak mematikan proses.
+
+        sherpa-onnx memanggil ``exit(-1)`` dari C++ bila berkas kata kunci
+        memuat baris tidak valid. Baris seperti itu dibuang di sini, dan bila
+        ada yang dibuang berkas pengguna ditulis ulang supaya pulih sendiri
+        (``get_user_keywords_path`` tidak pernah memperbarui salinan pengguna
+        yang sudah ada).
+
+        Kembalikan path berkas kata kunci yang sudah bersih, atau ``None``
+        bila tidak ada satu pun baris yang valid.
+        """
+        try:
+            teks_token = tokens_path.read_text(encoding="utf-8", errors="replace")
+            teks_kata = keywords_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            logger.error(f"Gagal membaca berkas kata kunci ({keywords_path}): {e}")
+            return None
+
+        hasil = saring_kata_kunci(teks_kata, teks_token)
+
+        for baris, alasan in hasil.baris_rusak:
+            logger.warning(f"Baris kata kunci dibuang [{alasan}]: {baris.strip()!r}")
+
+        if not hasil.ada_baris_valid:
+            return None
+
+        if hasil.bersih:
+            return keywords_path
+
+        # Tulis ulang berkas pengguna agar pulih sendiri (self-healing).
+        try:
+            keywords_path.write_text(hasil.teks_bersih, encoding="utf-8")
+            logger.info(f"Berkas kata kunci dibersihkan: {keywords_path}")
+            return keywords_path
+        except OSError:
+            pass
+
+        # Cadangan: berkas di direktori instalasi mungkin hanya-baca.
+        try:
+            aman = keywords_path.parent / f"{keywords_path.stem}_bersih{keywords_path.suffix}"
+            aman.write_text(hasil.teks_bersih, encoding="utf-8")
+            logger.info(f"Kata kunci bersih ditulis ke: {aman}")
+            return aman
+        except OSError as e:
+            logger.error(f"Gagal menulis kata kunci bersih: {e}")
+            return None
 
     @staticmethod
     def _ensure_ascii_path(file_path: Path, lang: str) -> Path:

@@ -149,7 +149,7 @@ export const t = {
     cameraTestFail: 'Uji kamera gagal dijalankan.',
     cameraFloat: 'Kartu Kamera Melayang',
     cameraFloatDesc:
-      'Tampilkan kartu kamera kecil yang bisa digeser. Kamera ini yang dipakai saat Anda meminta SELA melihat atau memotret Anda.',
+      'Saklar induk kamera. Bila dimatikan, ikon kecil kamera pun hilang sehingga tidak ada yang bisa mengakses kamera. Bila dinyalakan, kartu kamera bisa dilipat jadi ikon kecil lewat tombol silang.',
     cameraCard: 'Kamera',
     cameraDrag: 'Geser kartu',
     cameraTake: 'Ambil Foto',
@@ -159,6 +159,12 @@ export const t = {
     cameraFail: 'Kamera tidak bisa dibuka.',
     photoFromCamera: 'Foto dari kamera',
     photoTakenBy: 'SELA mengambil foto ini',
+    cameraShow: 'Tampilkan kamera',
+    cameraHide: 'Sembunyikan kamera',
+    cameraLive: 'SELA sedang melihat',
+    photoAttached: 'Foto terlampir',
+    photoRemove: 'Hapus foto',
+    photoAskHint: 'Tanyakan soal foto ini, misalnya "saya lagi ngapain?"',
 
     // Peta lokasi kampus
     mapRoute: 'Buka Rute',

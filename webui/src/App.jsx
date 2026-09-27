@@ -19,7 +19,26 @@ import GerbangAdmin from './components/GerbangAdmin'
 import Help from './components/Help'
 import KartuKamera from './components/KartuKamera'
 import useSelaBridge from './lib/useSelaBridge'
-import { KUNCI_KAMERA } from './lib/percakapan'
+import { KUNCI_KAMERA, KUNCI_KAMERA_TERBUKA } from './lib/percakapan'
+import { t } from './lib/translations'
+
+/** Ikon kamera (lensa) untuk tombol kecil pelipat kartu kamera. */
+function IconLensa() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.822 1.316z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
+      />
+    </svg>
+  )
+}
 
 let urutSesi = 0
 const idSesi = () => `s${Date.now().toString(36)}${(urutSesi++).toString(36)}`
@@ -94,6 +113,21 @@ function kameraAwal() {
   }
 }
 
+/**
+ * Apakah kartu kamera sedang dibentangkan (bukan dilipat jadi ikon kecil).
+ *
+ * Ini tingkat kedua, terpisah dari saklar induk di Pengaturan: saklar induk
+ * mematikan kamera sepenuhnya (ikon kecil pun hilang), sedangkan lipatan ini
+ * hanya menyembunyikan kartunya.
+ */
+function kameraTerbukaAwal() {
+  try {
+    return localStorage.getItem(KUNCI_KAMERA_TERBUKA) !== '0'
+  } catch (_) {
+    return true
+  }
+}
+
 export default function App() {
   const {
     terhubung,
@@ -117,6 +151,10 @@ export default function App() {
   )
   const [tema, setTema] = useState(temaAwal)
   const [kameraMelayang, setKameraMelayang] = useState(kameraAwal)
+  // Kartu kamera sedang dibentangkan atau dilipat jadi ikon kecil.
+  const [kameraTerbuka, setKameraTerbuka] = useState(kameraTerbukaAwal)
+  // Foto yang menunggu dikirim bersama pertanyaan pengguna.
+  const [lampiranFoto, setLampiranFoto] = useState(null)
   // Animasi sekali-jalan yang dipicu oleh emosi dari mesin AI.
   const [gerakan, setGerakan] = useState(null)
   const emosiSebelumnya = useRef(null)
@@ -196,9 +234,16 @@ export default function App() {
         setSesiAktif('live')
         aksi.bersihkanPercakapan()
       }
+      // Bila ada foto terlampir, kirim gambarnya lebih dulu supaya alat
+      // kamera mesin AI memakai foto itu, lalu gelembungnya baru muncul.
+      if (lampiranFoto) {
+        aksi.kirimBingkai?.(lampiranFoto)
+        aksi.tambahFoto?.(lampiranFoto, teks.trim())
+        setLampiranFoto(null)
+      }
       aksi.kirimTeks(teks.trim())
     },
-    [aksi, sesiAktif],
+    [aksi, sesiAktif, lampiranFoto],
   )
 
   const pilihSesi = useCallback((id) => {
@@ -223,25 +268,52 @@ export default function App() {
   // Pengaturan menulisnya ke penyimpanan peramban.
   useEffect(() => {
     setKameraMelayang(kameraAwal())
+    setKameraTerbuka(kameraTerbukaAwal())
     const tunda = setTimeout(() => aksi.siapSiaga?.(), 300)
     return () => clearTimeout(tunda)
   }, [halaman, aksi])
 
-  // Foto dari kartu kamera: dikirim ke mesin AI (supaya alat kamera memakai
-  // gambar ini) sekaligus ditampilkan di percakapan sebagai pesan pengguna.
+  // Foto sadar (tombol "Ambil Foto", atau permintaan yang datang dari teks
+  // pengguna): TIDAK langsung jadi gelembung. Foto dilampirkan ke kotak teks
+  // supaya pengguna bisa bertanya tentang foto itu.
+  //
+  // Permintaan dari MESIN AI sendiri (alat take_photo) tidak dilampirkan -
+  // gambar itu hanya dipakai AI untuk menjawab, tanpa mengganggu kotak teks.
   const tanganiBingkai = useCallback(
-    (dataUrl) => {
+    (dataUrl, sumber = 'pengguna') => {
       aksi.kirimBingkai?.(dataUrl)
-      aksi.tambahFoto?.(dataUrl, 'Foto dari kamera')
+      if (sumber === 'ai') return
+      setLampiranFoto(dataUrl)
       setPanelTerbuka(true)
+      setHalaman('beranda')
     },
     [aksi],
   )
 
-  const tutupKamera = useCallback(() => {
-    setKameraMelayang(false)
+  // Bingkai hidup: hanya disimpan di mesin AI, tidak mengganggu percakapan.
+  const tanganiBingkaiHidup = useCallback(
+    (dataUrl) => {
+      aksi.kirimBingkai?.(dataUrl)
+    },
+    [aksi],
+  )
+
+  // Tombol silang pada kartu kamera melipat kartunya jadi ikon kecil - sama
+  // seperti panel obrolan. Mematikan kamera sepenuhnya tetap hanya dari
+  // halaman Pengaturan.
+  const lipatKamera = useCallback(() => {
+    setKameraTerbuka(false)
     try {
-      localStorage.setItem(KUNCI_KAMERA, '0')
+      localStorage.setItem(KUNCI_KAMERA_TERBUKA, '0')
+    } catch (_) {
+      // diabaikan
+    }
+  }, [])
+
+  const bentangkanKamera = useCallback(() => {
+    setKameraTerbuka(true)
+    try {
+      localStorage.setItem(KUNCI_KAMERA_TERBUKA, '1')
     } catch (_) {
       // diabaikan
     }
@@ -297,16 +369,36 @@ export default function App() {
               terhubung={terhubung}
               volume={lip?.v || 0}
               langkahAlat={langkahAlat}
+              lampiran={lampiranFoto}
+              onHapusLampiran={() => setLampiranFoto(null)}
             />
 
-            {/* Kartu kamera melayang (bisa digeser, bisa dimatikan) */}
-            {kameraMelayang && (
-              <KartuKamera
-                nonce={permintaanFoto}
-                onBingkai={tanganiBingkai}
-                onTutup={tutupKamera}
-              />
-            )}
+            {/* Kamera. Saklar induk di Pengaturan menentukan apakah kamera
+                bisa diakses sama sekali; bila mati, ikon kecilnya pun tidak
+                muncul sehingga pengguna tidak punya jalan masuk. Bila aktif,
+                kartunya bisa dilipat jadi ikon kecil - sama seperti panel
+                obrolan. */}
+            {kameraMelayang &&
+              (kameraTerbuka ? (
+                <KartuKamera
+                  permintaan={permintaanFoto}
+                  onBingkai={tanganiBingkai}
+                  onBingkaiHidup={tanganiBingkaiHidup}
+                  onTutup={lipatKamera}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={bentangkanKamera}
+                  data-kamera-ikon="1"
+                  className="fixed z-40 top-24 left-6 w-11 h-11 rounded-2xl flex items-center justify-center
+                    bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl border border-white/60 dark:border-slate-700/60
+                    shadow-xl text-blue-600 dark:text-blue-400 hover:scale-105 active:scale-95 transition-all"
+                  title={t.id.cameraShow}
+                >
+                  <IconLensa />
+                </button>
+              ))}
 
             {/* Tombol suara + status */}
             <VoiceControls

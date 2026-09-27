@@ -10,6 +10,81 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.9] - 2026-09-27
+
+Rilis ini memperbaiki **dua penyebab aplikasi tidak bisa dibuka** — satu di
+Linux, satu di Windows — yang keduanya membuat aplikasi mati tanpa pesan apa
+pun. Selain itu, pengguna baru kini benar-benar melihat kode aktivasi di
+peramban, suara kode aktivasi sepenuhnya Bahasa Indonesia, dan fitur kamera
+mengikuti kemauan pengguna: bisa dilipat jadi ikon kecil, dan foto tidak lagi
+langsung masuk ke percakapan.
+
+### Diperbaiki
+
+- **Linux: aplikasi tertutup sendiri saat start (wake word).** Berkas
+  `models/en/keywords.txt` memuat baris rusak
+  `▁HA I ▁HA I @Hai Hai`. Label kata kunci tidak boleh memuat spasi —
+  sherpa-onnx memperlakukan kata setelah spasi sebagai token, tidak
+  menemukannya, lalu **memanggil `exit()` dari dalam kode C++**. Proses Python
+  mati seketika sehingga `try/except` tidak sempat menolong dan tidak ada
+  jejaknya di log. Baris rusak itu dibuang dan berkas kini hanya memuat
+  `▁SE LA @SELA`.
+- **Baris kata kunci rusak tidak lagi bisa mematikan aplikasi.** Berkas kata
+  kunci disaring lebih dulu di Python (`src/audio_processing/kata_kunci.py`)
+  sebelum diserahkan ke sherpa-onnx. Baris tidak valid dibuang dengan
+  peringatan yang jelas, berkas pengguna ditulis ulang supaya pulih sendiri,
+  dan bila tidak ada satu pun baris yang sah, fitur wake word dimatikan
+  dengan rapi sementara aplikasi tetap berjalan.
+- **Salinan kata kunci milik pengguna kini ikut diperbarui.** Sebelumnya
+  `get_user_keywords_path()` hanya menyalin berkas bawaan saat berkas pengguna
+  belum ada, sehingga salinan lama yang rusak terus dipakai. Sekarang salinan
+  itu diperiksa dan dibersihkan setiap kali model dimuat.
+- **Windows: aplikasi tidak mau terbuka (tidak ada reaksi sama sekali).**
+  Build lama hanya mengemas `_sherpa_onnx.pyd` tanpa pustaka pendampingnya —
+  `onnxruntime.dll`, `sherpa-onnx-c-api.dll`, dan `sherpa-onnx-cxx-api.dll`
+  tidak ikut terbundel (tidak ada hook PyInstaller untuk paket ini). Saat wake
+  word dimuat, aplikasi menabrak memori (segfault) dan karena dibangun
+  `--windowed` tanpa konsol, tidak ada satu pun pesan yang terlihat. Pustaka
+  asli itu kini dikumpulkan lewat `pyinstaller_hooks/hook-sherpa_onnx.py`.
+- **`pynput` dan `python-xlib` ikut didaftarkan** sebagai modul tersembunyi
+  sehingga pintasan papan tik tidak lagi mati pada build Linux.
+- **Pembuat kata kunci menolak menulis baris yang berbahaya.**
+  `scripts/keyword_generator.py` dulu hanya memberi peringatan lalu tetap
+  menulis baris dengan label berspasi — baris itulah yang mematikan aplikasi.
+  Sekarang baris seperti itu ditolak.
+- **Suara kode aktivasi tidak lagi jatuh ke Bahasa Mandarin.**
+  `ActivationAnnouncer` bawaannya `zh-CN` dan masih punya cadangan ke
+  rekaman Mandarin. Kini bawaannya mengikuti `SystemConstants.DEFAULT_LOCALE`
+  (`id-ID`) dan cadangannya pun Indonesia.
+
+### Ditambahkan
+
+- **Halaman aktivasi di peramban.** Sebelumnya tahap aktivasi selalu memakai
+  penangan CLI, padahal aplikasi hasil paket berjalan tanpa konsol — pengguna
+  baru tidak pernah melihat kodenya dan aplikasi tampak menggantung. Mode
+  `web` kini menyalakan server kecil sementara
+  (`src/ui/web/activation.py`) yang menampilkan kode aktivasi besar-besar,
+  langkah menghubungkan perangkat ke xiaozhi.me, dan status yang diperbarui
+  otomatis; halaman itu menutup sendiri setelah perangkat aktif.
+- **Kamera bisa dilipat jadi ikon kecil.** Tombol silang pada kartu kamera
+  kini hanya menyembunyikan kartunya dan menyisakan ikon kamera kecil di
+  sudut layar — sama seperti panel obrolan. Saklar induk di Pengaturan tetap
+  satu-satunya cara mematikan kamera sepenuhnya.
+- **SELA bisa "melihat" tanpa difoto.** Kartu kamera mengirim bingkai hidup
+  setiap 5 detik ke mesin AI, jadi pertanyaan seperti "saya lagi ngapain?"
+  atau "gender saya apa?" bisa dijawab dari kamera walau pengguna tidak
+  menekan tombol foto.
+
+### Diubah
+
+- **Foto tidak lagi langsung masuk ke percakapan.** Menekan "Ambil Foto"
+  menaruh foto sebagai lampiran di kotak teks, sehingga pengguna bisa
+  mengetik pertanyaannya lebih dulu ("saya lagi ngapain?") dan foto itu ikut
+  terkirim bersama pertanyaannya. Permintaan foto yang datang dari mesin AI
+  sendiri tidak mengotori kotak teks.
+
+---
+
 ## [1.0.8] - 2026-09-26
 
 Rilis ini mengembalikan mesin AI ke bentuk asli py-xiaozhi (seluruh fitur

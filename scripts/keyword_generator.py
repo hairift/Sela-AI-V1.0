@@ -19,6 +19,14 @@ except ImportError:
     print("请安装: pip install pypinyin")
     sys.exit(1)
 
+# Pakai validator bersama supaya berkas yang ditulis tidak pernah mematikan
+# aplikasi (sherpa-onnx memanggil exit(-1) pada baris kata kunci yang rusak).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+try:
+    from src.audio_processing.kata_kunci import periksa_baris
+except ImportError:  # pragma: no cover - fallback bila dijalankan terpisah
+    periksa_baris = None
+
 
 class KeywordGenerator:
     def __init__(self, model_dir: Path):
@@ -131,6 +139,15 @@ class KeywordGenerator:
         pinyin_str = " ".join(split_parts)
         keyword_line = f"{pinyin_str} @{chinese_text}"
 
+        # Label tidak boleh memuat spasi: sherpa-onnx memperlakukan kata setelah
+        # spasi sebagai token dan memanggil exit(-1) bila token itu tidak ada.
+        if any(ch.isspace() for ch in chinese_text):
+            raise ValueError(
+                f"label '@{chinese_text}' memuat spasi; "
+                "sherpa-onnx akan menganggap kata setelah spasi sebagai token "
+                "dan menghentikan aplikasi. Pakai label tanpa spasi."
+            )
+
         # 如果有缺失的token，给出警告
         if missing_tokens:
             print(
@@ -153,6 +170,14 @@ class KeywordGenerator:
         try:
             # 生成keyword格式
             keyword_line = self.chinese_to_keyword_format(chinese_text)
+
+            # Jaring pengaman terakhir: jangan pernah menulis baris yang akan
+            # membuat sherpa-onnx menghentikan aplikasi.
+            if periksa_baris is not None:
+                sah, alasan = periksa_baris(keyword_line, self.available_tokens)
+                if not sah:
+                    print(f"❌ 拒绝写入无效关键词 [{alasan}]: {keyword_line}")
+                    return False
 
             # 检查是否已存在
             if self.keywords_file.exists():

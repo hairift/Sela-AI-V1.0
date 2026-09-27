@@ -216,7 +216,10 @@ export default function useSelaBridge() {
 
         case 'ambil_foto':
           // Mesin AI (atau permintaan pengguna) butuh gambar dari kamera.
-          setPermintaanFoto((n) => n + 1)
+          setPermintaanFoto((p) => ({
+            nonce: p.nonce + 1,
+            sumber: data.source === 'pengguna' ? 'pengguna' : 'ai',
+          }))
           break
 
         case 'button_text':

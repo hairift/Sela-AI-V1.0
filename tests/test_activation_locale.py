@@ -58,6 +58,51 @@ def test_suara_indonesia_bukan_rekaman_kosong():
         assert durasi > 0.3, f"{n}.wav terlalu pendek ({durasi:.2f}s)"
 
 
+def test_announcer_tanpa_argumen_memakai_indonesia():
+    """Dulu bawaannya ``zh-CN`` sehingga kode dibacakan dalam Bahasa Mandarin."""
+    a = ActivationAnnouncer()
+    assert a._locale == "id-ID"
+
+
+def test_cadangan_tidak_pernah_ke_rekaman_mandarin():
+    """Locale tak dikenal harus jatuh ke id-ID, bukan rekaman Mandarin."""
+    a = ActivationAnnouncer("xx-XX")
+    for n in ["activation", "0", "9"]:
+        path = a._get_sound_path(n)
+        assert path is not None, f"Suara {n} tidak ditemukan"
+        assert "zh-CN" not in str(path), f"Suara {n} jatuh ke Mandarin: {path}"
+        assert "id-ID" in str(path)
+
+
+def test_default_fungsi_announce_bukan_zh_cn():
+    import inspect
+
+    from src.utils.activation_announcer import announce_activation_code
+
+    sig = inspect.signature(announce_activation_code)
+    assert sig.parameters["locale"].default is None
+
+
+def test_sumber_announcer_bebas_locale_zh_cn():
+    """Tidak boleh ada lagi locale ``zh-CN`` yang tertanam di modul ini.
+
+    Hanya string yang benar-benar dipakai saat berjalan yang diperiksa
+    (docstring/komentar boleh menyebut ``zh-CN`` sebagai catatan sejarah).
+    """
+    src = (AKAR / "src" / "utils" / "activation_announcer.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    docstrings = _docstring_nodes(tree)
+    runtime = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docstrings
+    ]
+    pelanggar = [s for s in runtime if "zh-CN" in s]
+    assert not pelanggar, f"activation_announcer.py masih memakai locale zh-CN: {pelanggar}"
+
+
 def _docstring_nodes(tree: ast.AST) -> set[int]:
     """Kumpulkan id() node yang merupakan docstring (bukan string runtime)."""
     ids: set[int] = set()

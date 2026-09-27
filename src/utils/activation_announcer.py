@@ -22,11 +22,26 @@ _ASSETS_DIR = get_app_root() / "assets" / "sounds"
 _DEFAULT_SAMPLE_RATE = 24000
 
 
+def _locale_bawaan() -> str:
+    """Locale audio bawaan aplikasi (Indonesia).
+
+    Diambil dari :class:`SystemConstants` supaya hanya ada SATU sumber
+    kebenaran. Dulu nilai bawaannya ``zh-CN`` sehingga kode aktivasi
+    dibacakan dalam Bahasa Mandarin.
+    """
+    try:
+        from src.constants.system import SystemConstants
+
+        return getattr(SystemConstants, "DEFAULT_LOCALE", "id-ID")
+    except Exception:
+        return "id-ID"
+
+
 class ActivationAnnouncer:
     """激活验证码播报器."""
 
-    def __init__(self, locale: str = "zh-CN"):
-        self._locale = locale
+    def __init__(self, locale: str | None = None):
+        self._locale = locale or _locale_bawaan()
         self._stop_flag = threading.Event()
         self._play_thread: threading.Thread | None = None
 
@@ -35,9 +50,10 @@ class ActivationAnnouncer:
         sound_file = _ASSETS_DIR / self._locale / f"{name}.wav"
         if sound_file.exists():
             return sound_file
-        # 回退到 zh-CN
-        if self._locale != "zh-CN":
-            fallback = _ASSETS_DIR / "zh-CN" / f"{name}.wav"
+        # Cadangan ke locale bawaan aplikasi (Indonesia) — BUKAN zh-CN.
+        bawaan = _locale_bawaan()
+        if self._locale != bawaan:
+            fallback = _ASSETS_DIR / bawaan / f"{name}.wav"
             if fallback.exists():
                 return fallback
         return None
@@ -161,12 +177,12 @@ class ActivationAnnouncer:
 _announcer: ActivationAnnouncer | None = None
 
 
-def announce_activation_code(code: str, locale: str = "zh-CN") -> None:
+def announce_activation_code(code: str, locale: str | None = None) -> None:
     """播报激活验证码.
 
     Args:
         code: 验证码字符串
-        locale: 语言代码
+        locale: 语言代码（默认 memakai locale bawaan aplikasi, ``id-ID``）
     """
     global _announcer
     if _announcer is None:

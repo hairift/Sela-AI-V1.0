@@ -27,6 +27,11 @@ libs/ffmpeg/
 # ── Hasil build / paket ──────────────────────────────────────
 /build
 /dist
+# Folder sementara saat menukar hasil build (penjaga memblokir penimpaan).
+/build_siap
+/dist_siap
+/build_baru
+/dist_baru
 /installer
 *.spec
 .unifypy

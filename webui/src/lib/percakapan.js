@@ -27,8 +27,16 @@ export const KAMPUS = {
   alamat: 'Jl. Kesambi No. 202, Kesambi, Kota Cirebon',
 }
 
-/** Kunci penyimpanan setelan kartu kamera melayang di peramban. */
+/** Kunci penyimpanan setelan kartu kamera melayang di peramban.
+ *
+ * Dua tingkat, seperti panel obrolan:
+ *  - ``KUNCI_KAMERA``        -> saklar induk di Pengaturan (0 = kamera dimatikan
+ *                               total, ikon kecil pun tidak muncul);
+ *  - ``KUNCI_KAMERA_TERBUKA`` -> kartunya sedang dibentangkan atau dilipat
+ *                               menjadi ikon kecil.
+ */
 export const KUNCI_KAMERA = 'sela_kamera_melayang'
+export const KUNCI_KAMERA_TERBUKA = 'sela_kamera_terbuka'
 
 /** Balasan cepat bawaan per topik. Semua di bawah MAKS_PANJANG_TEKS. */
 const BALASAN = {

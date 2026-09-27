@@ -3,13 +3,19 @@
  * Kartu kamera melayang yang bisa digeser.
  *
  * Membuka kamera perangkat lewat getUserMedia (berjalan di localhost, jadi
- * dianggap konteks aman oleh peramban). Foto yang diambil:
- *   1. dikirim ke mesin AI lewat WebSocket, sehingga alat "take_photo" milik
- *      py-xiaozhi memakai gambar dari kamera ini - SELA benar-benar melihat;
- *   2. ditampilkan di gelembung percakapan sebagai pesan pengguna.
+ * dianggap konteks aman oleh peramban).
  *
- * Kartu bisa digeser ke mana saja, bisa ditutup, dan bisa dimatikan total dari
- * halaman Pengaturan.
+ * Ada dua jalur gambar:
+ *   1. **Foto sadar** (tombol "Ambil Foto") - masuk ke kotak teks sebagai
+ *      lampiran, supaya pengguna bisa bertanya tentang foto itu. Tidak
+ *      langsung muncul sebagai gelembung percakapan.
+ *   2. **Bingkai hidup** - dikirim berkala ke mesin AI tanpa mengganggu
+ *      pengguna, sehingga saat pengguna bertanya "saya lagi ngapain?" alat
+ *      kamera py-xiaozhi sudah punya gambar yang masih segar. SELA seolah
+ *      melihat terus.
+ *
+ * Kartu bisa digeser, dilipat jadi ikon kecil (tombol silang), dan
+ * dimatikan total dari halaman Pengaturan.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -17,6 +23,10 @@ import { t } from '../lib/translations'
 
 const UKURAN = 168
 const KUNCI_POSISI = 'sela_kamera_posisi'
+
+/** Jeda antar bingkai hidup. Harus lebih pendek dari masa segar bingkai di
+ *  sisi Python (``MAKS_UMUR_BINGKAI_S`` = 12 detik). */
+const JEDA_HIDUP_MS = 5000
 
 function posisiAwal() {
   if (typeof window === 'undefined') return { x: 24, y: 96 }
@@ -31,7 +41,12 @@ function posisiAwal() {
   return { x: 24, y: 96 }
 }
 
-export default function KartuKamera({ nonce = 0, onBingkai, onTutup }) {
+export default function KartuKamera({
+  permintaan = { nonce: 0, sumber: 'ai' },
+  onBingkai,
+  onBingkaiHidup,
+  onTutup,
+}) {
   const [posisi, setPosisi] = useState(posisiAwal)
   const [galat, setGalat] = useState('')
   const [siap, setSiap] = useState(false)
@@ -44,8 +59,10 @@ export default function KartuKamera({ nonce = 0, onBingkai, onTutup }) {
   posisiRef.current = posisi
   const onBingkaiRef = useRef(onBingkai)
   onBingkaiRef.current = onBingkai
+  const onBingkaiHidupRef = useRef(onBingkaiHidup)
+  onBingkaiHidupRef.current = onBingkaiHidup
   // Nonce terakhir yang sudah diproses, supaya satu permintaan = satu foto.
-  const nonceRef = useRef(nonce)
+  const nonceRef = useRef(permintaan.nonce)
 
   // --- Kamera ---
   useEffect(() => {
@@ -85,28 +102,46 @@ export default function KartuKamera({ nonce = 0, onBingkai, onTutup }) {
     }
   }, [])
 
-  const ambilFoto = useCallback(async () => {
+  const potret = useCallback(() => {
     const video = videoRef.current
-    if (!video || !video.videoWidth) return
+    if (!video || !video.videoWidth) return null
     const kanvas = document.createElement('canvas')
     kanvas.width = video.videoWidth
     kanvas.height = video.videoHeight
     const ctx = kanvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) return null
     ctx.drawImage(video, 0, 0, kanvas.width, kanvas.height)
-    const data = kanvas.toDataURL('image/jpeg', 0.82)
+    return kanvas.toDataURL('image/jpeg', 0.82)
+  }, [])
 
+  const ambilFoto = useCallback(() => {
+    const data = potret()
+    if (!data) return
     setKilat(true)
     setTimeout(() => setKilat(false), 260)
     onBingkaiRef.current?.(data)
-  }, [])
+  }, [potret])
+
+  // Bingkai hidup: dikirim berkala ke mesin AI tanpa mengganggu pengguna,
+  // supaya pertanyaan seperti "saya lagi ngapain?" bisa dijawab dari kamera
+  // walau pengguna tidak menekan tombol foto.
+  useEffect(() => {
+    if (!siap) return
+    const kirim = () => {
+      const data = potret()
+      if (data) onBingkaiHidupRef.current?.(data)
+    }
+    kirim() // satu bingkai begitu kamera siap
+    const timer = setInterval(kirim, JEDA_HIDUP_MS)
+    return () => clearInterval(timer)
+  }, [siap, potret])
 
   // Permintaan foto dari mesin AI atau dari teks pengguna.
   useEffect(() => {
-    if (nonce === nonceRef.current) return
-    nonceRef.current = nonce
-    ambilFoto()
-  }, [nonce, ambilFoto])
+    if (permintaan.nonce === nonceRef.current) return
+    nonceRef.current = permintaan.nonce
+    ambilFoto(permintaan.sumber)
+  }, [permintaan, ambilFoto])
 
   // --- Geser kartu ---
   const mulaiSeret = (e) => {
@@ -159,12 +194,19 @@ export default function KartuKamera({ nonce = 0, onBingkai, onTutup }) {
               <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
             </svg>
             {t.id.cameraCard}
+            {siap && (
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"
+                title={t.id.cameraLive}
+              />
+            )}
           </span>
           <button
             type="button"
+            data-kamera-lipat="1"
             onClick={onTutup}
-            className="w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all"
-            title={t.id.close}
+            className="w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all"
+            title={t.id.cameraHide}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.6} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -194,7 +236,8 @@ export default function KartuKamera({ nonce = 0, onBingkai, onTutup }) {
         <div className="p-2">
           <button
             type="button"
-            onClick={ambilFoto}
+            data-kamera-ambil="1"
+            onClick={() => ambilFoto('pengguna')}
             disabled={!siap}
             className="w-full text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
