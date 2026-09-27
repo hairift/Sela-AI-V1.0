@@ -78,13 +78,25 @@ _HALAMAN = """<!DOCTYPE html>
   .menunggu {{ background: rgba(80,140,220,.12); border-color: rgba(90,150,230,.32); color: #b9d4f7; }}
   .sukses   {{ background: rgba(60,190,130,.14); border-color: rgba(70,200,140,.4);  color: #a9f0cd; }}
   .gagal    {{ background: rgba(230,90,90,.14);  border-color: rgba(240,110,110,.4); color: #ffc4c4; }}
+  .dilewati {{ background: rgba(210,160,60,.14); border-color: rgba(220,175,80,.4); color: #ffe0a8; }}
   .titik {{
     width: 9px; height: 9px; border-radius: 50%; background: currentColor;
     animation: denyut 1.4s ease-in-out infinite; flex: 0 0 auto;
   }}
-  .sukses .titik, .gagal .titik {{ animation: none; }}
+  .sukses .titik, .gagal .titik, .dilewati .titik {{ animation: none; }}
   @keyframes denyut {{ 0%,100% {{ opacity:.35 }} 50% {{ opacity:1 }} }}
   .catatan {{ margin: 20px 0 0; font-size: 12px; color: #6f86a6; }}
+  .aksi {{ margin-top: 26px; padding-top: 20px; border-top: 1px solid rgba(120,170,255,.16); }}
+  .aksi button {{
+    width: 100%; padding: 13px 18px; font: inherit; font-size: 14px; font-weight: 600;
+    color: #cfe4ff; cursor: pointer;
+    background: rgba(40,80,140,.45); border: 1px solid rgba(120,170,255,.32);
+    border-radius: 12px; transition: background .15s ease, transform .1s ease;
+  }}
+  .aksi button:hover:not(:disabled) {{ background: rgba(55,105,175,.6); }}
+  .aksi button:active:not(:disabled) {{ transform: scale(.985); }}
+  .aksi button:disabled {{ opacity: .45; cursor: default; }}
+  .aksi .catatan {{ margin-top: 12px; line-height: 1.7; }}
 </style>
 </head>
 <body>
@@ -108,6 +120,14 @@ _HALAMAN = """<!DOCTYPE html>
     </div>
 
     <p class="catatan">Halaman ini menutup sendiri setelah perangkat aktif.</p>
+
+    <div class="aksi">
+      <button type="button" id="lewati">Lewati dulu, pakai aplikasinya</button>
+      <p class="catatan">
+        Belum sempat mendaftar? Lewati saja - kode ini bisa dilihat lagi kapan
+        saja di <strong>Pengaturan &gt; Perangkat &amp; Aktivasi</strong>.
+      </p>
+    </div>
   </div>
 <script>
   var kode = {kode_json};
@@ -122,7 +142,14 @@ _HALAMAN = """<!DOCTYPE html>
 
   var kotakStatus = document.getElementById('status');
   var teksPesan = document.getElementById('pesan');
+  var tombolLewati = document.getElementById('lewati');
   var sudahFinal = false;
+
+  tombolLewati.addEventListener('click', function () {{
+    tombolLewati.disabled = true;
+    teksPesan.textContent = 'Melewati aktivasi...';
+    fetch('lewati', {{ method: 'POST' }}).catch(function () {{}});
+  }});
 
   function periksa() {{
     fetch('status', {{ cache: 'no-store' }})
@@ -130,8 +157,9 @@ _HALAMAN = """<!DOCTYPE html>
       .then(function (d) {{
         kotakStatus.className = 'status ' + d.status;
         teksPesan.textContent = d.pesan;
-        if (d.status === 'sukses' || d.status === 'gagal') {{
+        if (d.status === 'sukses' || d.status === 'gagal' || d.status === 'dilewati') {{
           sudahFinal = true;
+          tombolLewati.disabled = true;
         }}
       }})
       .catch(function () {{}});
@@ -170,6 +198,10 @@ class WebActivation(BaseActivation):
         self._status: str = "menunggu"
         self._pesan: str = "Menunggu kode dimasukkan di xiaozhi.me..."
         self._selesai = asyncio.Event()
+        # Dinyalakan tombol "Lewati dulu". Tanpa jalan keluar ini pengguna yang
+        # belum siap mendaftarkan perangkat terkunci total: `start_app` keluar
+        # dengan kode 1 bila aktivasi gagal.
+        self._dilewati = asyncio.Event()
 
     # ---- Siklus hidup ----
 
@@ -193,7 +225,37 @@ class WebActivation(BaseActivation):
             self._buka_jendela()
             logger.info(f"Menunggu aktivasi perangkat (kode: {self._kode})")
 
-            sukses = await self._service.activate(data)
+            # Jalankan penantian aktivasi dan tombol "Lewati dulu" bersamaan;
+            # yang lebih dulu selesai itulah keputusannya.
+            tugas = asyncio.ensure_future(self._service.activate(data))
+            penunggu_lewat = asyncio.ensure_future(self._dilewati.wait())
+            try:
+                await asyncio.wait(
+                    {tugas, penunggu_lewat}, return_when=asyncio.FIRST_COMPLETED
+                )
+            finally:
+                if not penunggu_lewat.done():
+                    penunggu_lewat.cancel()
+
+            if self._dilewati.is_set() and not tugas.done():
+                tugas.cancel()
+                try:
+                    await tugas
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:  # pragma: no cover - jaring pengaman
+                    logger.debug(f"Aktivasi dihentikan: {e}")
+                self._status = "dilewati"
+                self._pesan = (
+                    "Aktivasi dilewati. Perangkat belum terdaftar di akun Anda - "
+                    "buka Pengaturan > Perangkat & Aktivasi kapan saja untuk "
+                    "mendapat kode baru."
+                )
+                logger.info("Aktivasi dilewati pengguna; aplikasi tetap dijalankan")
+                await asyncio.sleep(_JEDA_TAMPIL_SUKSES)
+                return True
+
+            sukses = bool(tugas.result())
 
             if sukses:
                 self._status = "sukses"
@@ -218,10 +280,16 @@ class WebActivation(BaseActivation):
         finally:
             await self._hentikan_server()
 
+    async def _lewati(self, request: web.Request) -> web.Response:
+        """Tandai aktivasi dilewati supaya aplikasi bisa tetap dibuka."""
+        self._dilewati.set()
+        return web.json_response({"ok": True})
+
     async def _mulai_server(self) -> None:
         app = web.Application()
         app.router.add_get("/", self._halaman)
         app.router.add_get("/status", self._status_json)
+        app.router.add_post("/lewati", self._lewati)
 
         self._port = _cari_port()
         self._runner = web.AppRunner(app)

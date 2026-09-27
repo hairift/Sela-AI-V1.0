@@ -153,3 +153,89 @@ def test_tanpa_data_aktivasi_tidak_membuka_server():
     ui._service.get_activation_data = lambda: None
     assert asyncio.run(ui.run()) is False
     assert ui._runner is None
+
+
+def test_tombol_lewati_membiarkan_aplikasi_dibuka():
+    """Pengguna yang belum siap mendaftar TIDAK boleh terkunci.
+
+    ``start_app`` keluar dengan kode 1 bila aktivasi gagal, jadi tanpa jalan
+    keluar ini perangkat yang belum terdaftar membuat aplikasi tidak bisa
+    dibuka sama sekali. Tombol "Lewati dulu" harus membuat ``run()`` mengembalikan
+    True dan meneruskan aplikasi.
+    """
+
+    class _LayananMenggantung:
+        """Aktivasi yang tidak pernah selesai - meniru menunggu kode."""
+
+        def __init__(self):
+            self.dibatalkan = False
+
+        def get_activation_data(self):
+            return {"code": "112233", "challenge": "c", "message": "Masukkan kode"}
+
+        def get_serial_number(self):
+            return "SN-001"
+
+        def get_mac_address(self):
+            return "AA:BB:CC:DD:EE:FF"
+
+        def get_activation_status(self):
+            return {
+                "local_activated": False,
+                "server_activated": False,
+                "status_consistent": True,
+            }
+
+        async def activate(self, data=None):
+            try:
+                await asyncio.sleep(300)
+            except asyncio.CancelledError:
+                self.dibatalkan = True
+                raise
+            return False
+
+    async def skenario():
+        import src.ui.web.activation as mod
+
+        asli = mod._JEDA_TAMPIL_SUKSES
+        mod._JEDA_TAMPIL_SUKSES = 0
+        try:
+            layanan = _LayananMenggantung()
+            ui = WebActivation(layanan, {"need_activation_ui": True})
+            tugas = asyncio.create_task(ui.run())
+
+            for _ in range(200):
+                if ui._port:
+                    break
+                await asyncio.sleep(0.02)
+            assert ui._port, "server aktivasi tidak pernah menyala"
+
+            from aiohttp import ClientSession
+
+            async with ClientSession() as sesi:
+                async with sesi.post(
+                    f"http://127.0.0.1:{ui._port}/lewati"
+                ) as r:
+                    assert r.status == 200
+                    assert (await r.json())["ok"] is True
+
+            hasil = await asyncio.wait_for(tugas, timeout=10)
+            assert hasil is True, "melewati aktivasi harus meneruskan aplikasi"
+            assert ui._status == "dilewati"
+            assert layanan.dibatalkan, "penantian aktivasi tidak dihentikan"
+            assert ui._runner is None, "server aktivasi tidak dimatikan"
+        finally:
+            mod._JEDA_TAMPIL_SUKSES = asli
+
+    asyncio.run(skenario())
+
+
+def test_halaman_aktivasi_punya_tombol_lewati():
+    """Tombolnya harus benar-benar ada di halaman, bukan hanya di backend."""
+    ui = _buat()
+    ui._kode = "445566"
+    resp = asyncio.run(ui._halaman(None))
+    body = resp.text
+    assert "Lewati dulu" in body
+    assert "/lewati" in body or "'lewati'" in body
+    assert "Perangkat &amp; Aktivasi" in body

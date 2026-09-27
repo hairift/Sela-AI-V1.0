@@ -250,6 +250,15 @@ export default function KartuKamera({
             type="button"
             data-kamera-lipat="1"
             onClick={onTutup}
+            /* WAJIB: hentikan pointerdown agar bilah geser tidak memulai
+               penyeretan. Tanpa ini `mulaiSeret` memasang
+               `setPointerCapture` pada bilah geser, dan sesuai spesifikasi
+               peramban event `click` lalu diarahkan ke PEMEGANG CAPTURE -
+               bukan ke tombol ini. Akibatnya `onClick` tidak pernah berjalan
+               dan kartu tidak bisa dilipat dengan tetikus sungguhan.
+               (Uji lama memakai `element.click()` yang tidak memicu event
+               pointer, sehingga cacat ini lolos.) */
+            onPointerDown={(e) => e.stopPropagation()}
             className="w-5 h-5 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all"
             title={t.id.cameraHide}
             aria-label={t.id.cameraHide}

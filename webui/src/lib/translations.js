@@ -154,6 +154,16 @@ export const t = {
     perangkatDisalin: 'Disalin',
     perangkatSalin: 'Salin',
     perangkatKosong: 'Belum tersedia',
+    perangkatPeringatan: 'Perlu diperbaiki',
+    perangkatIdentitasBaru: 'Buat Identitas Baru',
+    perangkatIdentitasBaruDesc:
+      'Pakai ini bila kode aktivasi tidak pernah muncul. Identitas lama disisihkan (tidak dihapus), lalu aplikasi meminta kode baru ke server.',
+    perangkatIdentitasBaruKonfirmasi:
+      'Buat identitas perangkat baru?\n\nPerangkat ini akan terdaftar sebagai perangkat BARU di server, dan setelah ini harus didaftarkan ulang di xiaozhi.me memakai kode yang muncul. Identitas lama tetap disimpan sebagai berkas cadangan.',
+    perangkatIdentitasBerhasil:
+      'Identitas baru dibuat. Salin kode di bawah ke dasbor xiaozhi.me.',
+    perangkatCadangan: 'Cadangan identitas lama',
+    perangkatKodeBaru: 'Kode Aktivasi Baru',
 
     // Peredam gema
     aecLabel: 'Peredam Gema (AEC)',

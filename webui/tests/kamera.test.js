@@ -190,8 +190,11 @@ test('tombol panah melipat kartu, bukan mematikan saklar induk', () => {
     !badan.includes('KUNCI_KAMERA,'),
     'lipatKamera tidak boleh mematikan saklar induk kamera',
   )
-  // Ikonnya panah (chevron), bukan tanda silang.
-  const bilah = KARTU.slice(KARTU.indexOf('data-kamera-lipat'), KARTU.indexOf('data-kamera-lipat') + 900)
+  // Ikonnya panah (chevron), bukan tanda silang. Potong sampai penutup
+  // </button> supaya tidak bergantung pada panjang tetap: komentar atau
+  // kelas gaya yang bertambah tidak boleh membuat uji ini rapuh.
+  const mulai = KARTU.indexOf('data-kamera-lipat')
+  const bilah = KARTU.slice(mulai, KARTU.indexOf('</button>', mulai))
   assert.ok(
     bilah.includes('M15 19l-7-7 7-7'),
     'tombol lipat harus memakai ikon panah (chevron), bukan tanda silang',

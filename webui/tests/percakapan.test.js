@@ -10,8 +10,12 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
 import {
+  BATAS_SEPI_BICARA_MS,
   KAMPUS,
   KUNCI_KAMERA,
   MAKS_PANJANG_TEKS,
@@ -89,4 +93,36 @@ test('titik peta kampus berada di sekitar Cirebon', () => {
 test('kunci setelan kamera berupa string', () => {
   assert.equal(typeof KUNCI_KAMERA, 'string')
   assert.ok(KUNCI_KAMERA.length > 0)
+})
+
+const AKAR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CHAT_BUBBLE = readFileSync(
+  join(AKAR, 'src/components/ChatBubble.jsx'),
+  'utf8',
+)
+
+test('BATAS_SEPI_BICARA_MS cukup longgar untuk jeda antar-kalimat', () => {
+  assert.equal(typeof BATAS_SEPI_BICARA_MS, 'number')
+  assert.ok(
+    BATAS_SEPI_BICARA_MS >= 3000,
+    'jeda terlalu pendek -> visualizer berkedip saat TTS jeda sebentar',
+  )
+})
+
+test('visualizer dilepas bila status bicara macet, agar teks tidak tertutup', () => {
+  // Status "speaking" bisa MACET saat pemutaran audio tersendat. Tanpa
+  // pengawas ini, <Visualizer> menutupi teks jawaban selamanya.
+  assert.ok(
+    CHAT_BUBBLE.includes('BATAS_SEPI_BICARA_MS'),
+    'ChatBubble tidak memakai batas jeda bicara',
+  )
+  assert.match(
+    CHAT_BUBBLE,
+    /const bersuara = [^\n]*!bicaraMacet/,
+    'bersuara tidak dibatalkan saat bicara macet',
+  )
+  assert.ok(
+    CHAT_BUBBLE.includes('tampilkanVisualizer = !isUser && bersuara'),
+    'visualizer tidak lagi dikendalikan oleh bersuara',
+  )
 })

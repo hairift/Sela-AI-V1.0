@@ -144,6 +144,24 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
     }
   }
 
+  // Buat identitas perangkat baru. Dipakai saat identitas lama tidak sah
+  // (mis. MAC adaptor virtual yang sama di semua komputer) sehingga server
+  // menganggap perangkat "sudah terdaftar" dan tidak pernah mengirim kode.
+  const buatIdentitasBaru = async () => {
+    setPeriksaPerangkat(true)
+    setHasilPeriksa(null)
+    try {
+      const r = await fetch('/api/perangkat/identitas-baru', { method: 'POST' })
+      const d = await r.json()
+      setHasilPeriksa(d.ok ? d : { ...d, ok: false })
+      await muatPerangkat()
+    } catch (_) {
+      setHasilPeriksa({ ok: false, error: t.id.perangkatGagal })
+    } finally {
+      setPeriksaPerangkat(false)
+    }
+  }
+
   const bukaKonsol = async (url) => {
     if (!url) return
     try {
@@ -735,6 +753,24 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
               </span>
             </Baris>
 
+            {/* Penjelasan kenapa kode aktivasi tidak muncul. Tanpa ini pengguna
+                hanya melihat "Aktif" dan bingung karena dasbornya tidak pernah
+                mengenal perangkat ini - padahal identitasnya memang tidak sah
+                (MAC adaptor virtual yang sama di semua komputer). */}
+            {infoPerangkat?.identityWarning && (
+              <div
+                data-perangkat-peringatan="1"
+                className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-1"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                  {t.id.perangkatPeringatan}
+                </p>
+                <p className="text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  {infoPerangkat.identityWarning}
+                </p>
+              </div>
+            )}
+
             <div className="pt-1 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <button
@@ -745,6 +781,19 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
                   className="text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-40"
                 >
                   {periksaPerangkat ? t.id.perangkatMemeriksa : t.id.perangkatPeriksa}
+                </button>
+                <button
+                  type="button"
+                  data-identitas-baru="1"
+                  onClick={() => {
+                    if (window.confirm(t.id.perangkatIdentitasBaruKonfirmasi)) {
+                      buatIdentitasBaru()
+                    }
+                  }}
+                  disabled={periksaPerangkat}
+                  className="text-[11px] px-2.5 py-1.5 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 disabled:opacity-40"
+                >
+                  {t.id.perangkatIdentitasBaru}
                 </button>
                 <button
                   type="button"
@@ -763,7 +812,9 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
                   className="rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 space-y-1"
                 >
                   <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500">
-                    {t.id.perangkatKode}
+                    {hasilPeriksa.backup
+                      ? t.id.perangkatKodeBaru
+                      : t.id.perangkatKode}
                   </p>
                   <p className="text-lg font-mono font-bold text-blue-700 dark:text-blue-300 tracking-wider">
                     {hasilPeriksa.code}
@@ -771,6 +822,12 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
                   <p className="text-[10px] text-blue-600/80 dark:text-blue-300/80 leading-relaxed">
                     {t.id.perangkatKodeHint}
                   </p>
+                  {hasilPeriksa.backup && (
+                    <p className="text-[10px] text-blue-600/70 dark:text-blue-300/70 leading-relaxed">
+                      {t.id.perangkatCadangan}:{' '}
+                      <span className="font-mono">{hasilPeriksa.backup}</span>
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -785,6 +842,9 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
                 </p>
               )}
 
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                {t.id.perangkatIdentitasBaruDesc}
+              </p>
               <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-relaxed">
                 {t.id.perangkatKonsolDesc}
               </p>

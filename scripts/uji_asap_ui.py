@@ -127,6 +127,42 @@ class Sesi:
         )
         return r.get("result", {}).get("value")
 
+    async def klik_sungguhan(self, pemilih: str) -> bool:
+        """Klik elemen dengan event POINTER sungguhan (bukan ``.click()``).
+
+        ``element.click()`` adalah pemanggilan programatik: ia TIDAK memicu
+        ``pointerdown``. Akibatnya tombol yang berada di dalam area yang bisa
+        diseret selalu tampak "berfungsi" di uji, padahal bagi pengguna yang
+        menekan dengan tetikus tombol itu mati - karena ``setPointerCapture``
+        pada area seret mengalihkan event ``click`` ke pemegang capture.
+
+        Cacat nyata yang pernah lolos karena hal ini: tombol panah kartu kamera
+        tidak bisa melipat kartunya. Selalu pakai fungsi ini untuk tombol.
+        """
+        kotak = await self.evaluasi(
+            "(() => { const b = document.querySelector(%s);"
+            " if (!b) return null; const r = b.getBoundingClientRect();"
+            " return { x: r.left + r.width/2, y: r.top + r.height/2 }; })()"
+            % json.dumps(pemilih)
+        )
+        if not kotak:
+            return False
+        for jenis, tombol_ditekan in (("mousePressed", 1), ("mouseReleased", 0)):
+            await self.kirim(
+                "Input.dispatchMouseEvent",
+                {
+                    "type": jenis,
+                    "x": kotak["x"],
+                    "y": kotak["y"],
+                    "button": "left",
+                    "clickCount": 1,
+                    "buttons": tombol_ditekan,
+                    "pointerType": "mouse",
+                },
+            )
+            await asyncio.sleep(0.05)
+        return True
+
 
 def berbahaya(teks: str) -> bool:
     return not any(pola.lower() in teks.lower() for pola in GALAT_DIIZINKAN)

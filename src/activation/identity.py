@@ -21,6 +21,7 @@ import json
 import os
 import platform
 import socket
+import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -109,6 +110,71 @@ class DeviceIdentity:
         data = self.load_efuse_data()
         data["activation_status"] = bool(status)
         return self._save_efuse_data(data)
+
+    def identitas_mencurigakan(self) -> str:
+        """Alasan identitas tersimpan dianggap tidak sah (kosong = wajar).
+
+        Dipakai antarmuka untuk menjelaskan MENGAPA kode aktivasi tidak muncul.
+        Dua keadaan yang membuat server xiaozhi menganggap perangkat ini "sudah
+        terdaftar" sehingga tidak pernah mengirim kode:
+
+        1. MAC-nya milik adaptor virtual - nilainya sama di semua komputer yang
+           memasang perangkat lunak virtualisasi itu, jadi perangkat baru
+           bertabrakan dengan perangkat milik orang lain.
+        2. Nilainya jelas bukan buatan aplikasi ini (mis. ``hmac_key`` pendek),
+           tanda berkas pernah ditulis tangan.
+
+        Mengembalikan kalimat Bahasa Indonesia, atau "" bila identitas wajar.
+        """
+        data = self.load_efuse_data()
+        mac = str(data.get("mac_address") or "")
+        hmac_key = str(data.get("hmac_key") or "")
+        serial = str(data.get("serial_number") or "")
+
+        if mac and self._mac_virtual(mac):
+            return (
+                f"ID perangkat memakai adaptor virtual ({mac}). Nilai ini sama "
+                "di semua komputer yang memasang perangkat lunak virtualisasi, "
+                "sehingga server menganggapnya sudah terdaftar."
+            )
+        if hmac_key and len(hmac_key) != 64:
+            return (
+                "Kunci HMAC perangkat tidak berbentuk sebagaimana mestinya "
+                "(bukan 64 digit heksadesimal), tanda berkas identitas pernah "
+                "ditulis di luar aplikasi."
+            )
+        if serial and not serial.startswith("SN-"):
+            return "Nomor seri perangkat tidak dikenali bentuknya."
+        return ""
+
+    def reset_identity(self) -> Optional[Path]:
+        """Buang identitas perangkat lama supaya dibuat ulang dari nol.
+
+        Dipakai saat identitas tersimpan ternyata tidak sah - lihat
+        ``identitas_mencurigakan``. Setelah berkasnya disingkirkan, pemanggilan
+        ``ensure_efuse_file`` berikutnya membuat identitas baru dari adaptor
+        jaringan FISIK, dan server xiaozhi kembali mengirim kode aktivasi.
+
+        Berkas lama **DISISIHKAN, bukan dihapus**: bila ternyata perangkat
+        sudah terdaftar di akun pengguna, salinan itu masih bisa dikembalikan.
+
+        Returns:
+            Path berkas cadangan, atau ``None`` bila tidak ada berkas lama.
+        """
+        self.init_paths()
+        self._efuse_cache = None
+        if not self._efuse_file or not self._efuse_file.exists():
+            return None
+
+        cap = time.strftime("%Y%m%d-%H%M%S")
+        cadangan = self._efuse_file.with_name(f"efuse.json.bak-{cap}")
+        try:
+            os.replace(self._efuse_file, cadangan)
+        except OSError as e:
+            logger.error(f"Gagal menyisihkan efuse.json: {e}", exc_info=True)
+            return None
+        logger.info(f"Identitas perangkat disisihkan ke {cadangan.name}")
+        return cadangan
 
     def generate_hmac_signature(self, challenge: str) -> Optional[str]:
         hmac_key = self.load_efuse_data().get("hmac_key")

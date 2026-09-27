@@ -59,3 +59,6 @@ reports/
 
 # Situs dokumentasi hasil build
 /_site
+
+# Data kerja asisten (memori harian, otomasi) - bukan bagian produk
+/.workbuddy-ai/

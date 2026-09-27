@@ -43,13 +43,26 @@ class OtaConfigClient:
         return self._local_ip
 
     def initialize_config(self) -> None:
+        """Selaraskan DEVICE_ID dengan identitas perangkat yang sebenarnya.
+
+        ``SYSTEM_OPTIONS.DEVICE_ID`` adalah SALINAN dari MAC di ``efuse.json``,
+        dipakai untuk header OTA, autentikasi WebSocket, dan alat kamera.
+        Dulu salinan ini hanya diisi saat masih kosong, sehingga nilai lama
+        yang salah tidak pernah diperbaiki. Akibat nyatanya: identitas
+        perangkat sudah diganti, tetapi OTA tetap mengirim MAC lama ke server -
+        dan bila MAC lama itu adaptor virtual (``0a:00:27:..``) yang sudah
+        terdaftar, server menjawab "perangkat sudah aktif" sehingga **kode
+        aktivasi tidak pernah muncul**.
+
+        ``efuse.json`` adalah sumber kebenaran; salinan ini mengikutinya.
+        """
         self._config.initialize_client_id()
         device_id = self._config.get_config("SYSTEM_OPTIONS.DEVICE_ID")
-        if not device_id:
-            mac = self._identity.get_mac_address()
-            if mac:
-                self._config.update_config("SYSTEM_OPTIONS.DEVICE_ID", mac)
-                logger.info(f"已设置DEVICE_ID: {mac}")
+        mac = self._identity.get_mac_address()
+
+        if mac and (not device_id or str(device_id).lower() != str(mac).lower()):
+            self._config.update_config("SYSTEM_OPTIONS.DEVICE_ID", mac)
+            logger.info(f"DEVICE_ID diselaraskan dengan identitas perangkat: {mac}")
         logger.info(
             f"CLIENT_ID: {self._config.get_config('SYSTEM_OPTIONS.CLIENT_ID')}"
         )

@@ -24,6 +24,7 @@ import asyncio
 import base64
 import json
 import pathlib
+import re
 import shutil
 import socket
 import subprocess
@@ -40,7 +41,13 @@ from uji_asap_ui import CHROME_KANDIDAT, Sesi, cari_chrome, port_bebas
 PERTANYAAN = "Kontak dan lokasi UCIC?"
 
 # Berapa lama menunggu jawaban lengkap (mesin AI membacakan dengan suara dulu).
-BATAS_TUNGGU_S = 150.0
+#
+# Uji baru membaca gelembung setelah SELA benar-benar berhenti bicara
+# (``data-bicara="0"``), karena selama bicara visualizer MENGGANTIKAN isi
+# gelembung. Di lingkungan tanpa jendela, pemutaran audio berjalan lambat
+# (output underflow) sehingga satu jawaban bisa memakan ~80 detik - maka
+# batas ini sengaja longgar.
+BATAS_TUNGGU_S = 240.0
 
 
 async def tunggu_aplikasi(url_dasar: str, batas_detik: float = 60.0) -> bool:
@@ -107,11 +114,17 @@ async def jalankan(url_dasar: str) -> int:
 
     lulus: list[str] = []
     gagal: list[str] = []
+    lewat: list[str] = []
 
     def catat(ok: bool, judul: str, bukti: str = "") -> None:
         (lulus if ok else gagal).append(judul)
         tanda = "OK   " if ok else "GAGAL"
         print(f"  {tanda} {judul}" + (f"  [{bukti}]" if bukti else ""))
+
+    def lewati(judul: str, alasan: str) -> None:
+        """Tandai pemeriksaan yang tak bisa dinilai karena prasyarat lingkungan."""
+        lewat.append(judul)
+        print(f"  LEWAT {judul}  [{alasan}]")
 
     try:
         target = None
@@ -203,8 +216,11 @@ async def jalankan(url_dasar: str) -> int:
                       const alat = document.querySelector('[data-alat="1"]');
                       const peta = document.querySelector('[data-peta="1"]');
                       const saran = document.querySelector('[data-saran="1"]');
+                      // Selama data-bicara="1", visualizer MENGGANTIKAN isi
+                      // gelembung (teks + kartu peta). Jawaban baru boleh
+                      // dibaca setelah SELA benar-benar berhenti bicara.
                       const tuntas = document.querySelector(
-                        '[data-peran="assistant"][data-muat="0"][data-selesai="1"]'
+                        '[data-peran="assistant"][data-muat="0"][data-selesai="1"][data-bicara="0"]'
                       );
                       return JSON.stringify({
                         vis: !!vis,
@@ -236,9 +252,33 @@ async def jalankan(url_dasar: str) -> int:
             catat(jawaban_selesai, "Jawaban selesai tampil (efek mengetik tuntas)")
             catat(terlihat["visualizer"],
                   "Visualizer audio tampil selagi SELA berbicara")
-            catat(terlihat["alat"],
-                  "Papan langkah alat muncul saat mesin AI memanggil alat",
-                  terlihat["papanAlatLabel"])
+
+            # Perangkat yang belum diaktifkan di server tidak diberi akses
+            # alat: server hanya membalas "log in to the console ... enter the
+            # verification code". Tanpa aktivasi, papan alat dan kartu peta
+            # memang tak mungkin muncul, jadi antarmuka tidak boleh disalahkan.
+            teks_jawaban = await sesi.evaluasi(
+                """(() => {
+                  const g = [...document.querySelectorAll(
+                    '[data-peran="assistant"][data-muat="0"]'
+                  )];
+                  return g.length ? (g[g.length - 1].innerText || '') : '';
+                })()"""
+            ) or ""
+            perlu_aktivasi = bool(
+                re.search(
+                    r"log in to the console|verification code|add this device",
+                    teks_jawaban,
+                    re.IGNORECASE,
+                )
+            )
+            if perlu_aktivasi:
+                lewati("Papan langkah alat muncul saat mesin AI memanggil alat",
+                       "perangkat belum diaktifkan di server")
+            else:
+                catat(terlihat["alat"],
+                      "Papan langkah alat muncul saat mesin AI memanggil alat",
+                      terlihat["papanAlatLabel"])
 
             # Diagnostik: keadaan DOM saat jawaban selesai, supaya kegagalan
             # bisa ditelusuri tanpa menebak.
@@ -324,11 +364,17 @@ async def jalankan(url_dasar: str) -> int:
                   f"jumlah gelembung asisten={r['jumlahAsisten']}")
             catat(r["bintangMentah"] == 0, "Tidak ada markdown mentah (**) terlihat",
                   f"temuan={r['bintangMentah']}")
-            catat("openstreetmap" in (r["petaSrc"] or ""),
-                  "Peta memakai OpenStreetMap (tanpa kunci API)",
-                  (r["petaSrc"] or "")[:70])
-            catat(terlihat["peta"] or ("openstreetmap" in (r["petaSrc"] or "")),
-                  "Kartu peta muncul untuk jawaban berisi alamat kampus")
+            if perlu_aktivasi:
+                lewati("Peta memakai OpenStreetMap (tanpa kunci API)",
+                       "perangkat belum diaktifkan di server")
+                lewati("Kartu peta muncul untuk jawaban berisi alamat kampus",
+                       "perangkat belum diaktifkan di server")
+            else:
+                catat("openstreetmap" in (r["petaSrc"] or ""),
+                      "Peta memakai OpenStreetMap (tanpa kunci API)",
+                      (r["petaSrc"] or "")[:70])
+                catat(terlihat["peta"] or ("openstreetmap" in (r["petaSrc"] or "")),
+                      "Kartu peta muncul untuk jawaban berisi alamat kampus")
 
             print(f"\n  Cuplikan jawaban: {r['cuplikan']}")
             print(f"  Panjang jawaban : {r['panjangTeks']} karakter")
@@ -346,7 +392,10 @@ async def jalankan(url_dasar: str) -> int:
         shutil.rmtree(profil, ignore_errors=True)
 
     print()
-    print(f"LULUS {len(lulus)} pemeriksaan, GAGAL {len(gagal)}.")
+    print(f"LULUS {len(lulus)} pemeriksaan, GAGAL {len(gagal)}, LEWAT {len(lewat)}.")
+    if lewat:
+        for l in lewat:
+            print(f"  ~ {l}  (perlu aktivasi perangkat di server)")
     if gagal:
         for g in gagal:
             print(f"  - {g}")

@@ -163,9 +163,12 @@ async def jalankan(url_dasar: str) -> int:
             # ---- Tombol panah melipat kartu jadi pil kecil ----
             # Kartu TIDAK dilepas dari React (kalau dilepas, getUserMedia mati
             # dan SELA berhenti melihat). Ia hanya disembunyikan secara visual.
-            await sesi.evaluasi(
-                "document.querySelector('[data-kamera-lipat=\"1\"]').click(); 1"
-            )
+            #
+            # Klik WAJIB memakai event pointer sungguhan: tombol ini berada di
+            # dalam bilah geser yang memasang setPointerCapture, dan
+            # `element.click()` tidak memicunya sehingga cacat "tombol panah
+            # tidak melipat kartu" pernah lolos dari pemeriksa ini.
+            await sesi.klik_sungguhan('[data-kamera-lipat="1"]')
             await asyncio.sleep(0.6)
             kartu_masih_ada = await sesi.evaluasi(
                 "!!document.querySelector('[data-kamera=\"1\"]')"
@@ -221,9 +224,7 @@ async def jalankan(url_dasar: str) -> int:
             )
 
             # ---- Pil kecil membentangkan kembali ----
-            await sesi.evaluasi(
-                "document.querySelector('[data-kamera-ikon=\"1\"]').click(); 1"
-            )
+            await sesi.klik_sungguhan('[data-kamera-ikon="1"]')
             await asyncio.sleep(0.6)
             kartu_kembali = await sesi.evaluasi(
                 "(() => { const k = document.querySelector('[data-kamera=\"1\"]');"
@@ -267,9 +268,10 @@ async def jalankan(url_dasar: str) -> int:
                 "document.querySelectorAll('[data-peran]').length"
             ) or 0
 
-            diambil = await sesi.evaluasi(
-                "(() => { const b = document.querySelector('[data-kamera-ambil=\"1\"]');"
-                " if (!b) return 'tombol-tidak-ada'; b.click(); return 'ok' })()"
+            diambil = (
+                "ok"
+                if await sesi.klik_sungguhan('[data-kamera-ambil="1"]')
+                else "tombol-tidak-ada"
             )
             await asyncio.sleep(1.5)
 

@@ -10,6 +10,50 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.12] - 2026-09-27
+
+**Kode aktivasi kembali muncul untuk perangkat baru, pengguna tidak lagi
+terkunci bila menolak aktivasi, dan teks jawaban tidak bisa lagi tersembunyi
+di balik visualizer.**
+
+### Aktivasi
+
+- **Akar masalah "sudah terdaftar" ditemukan.** `config.json` menyimpan
+  `SYSTEM_OPTIONS.DEVICE_ID` dari percobaan lama - MAC VirtualBox
+  `0a:00:27:...` - dan mesin OTA mengirim nilai itu, bukan MAC fisik, ke
+  server. Karena MAC virtual sama di semua komputer, server menjawab "sudah
+  terdaftar" sehingga kode aktivasi tidak pernah terbit. `initialize_config()`
+  hanya mengisi `DEVICE_ID` bila kosong, jadi nilai yang salah tidak pernah
+  diperbaiki. Kini `DEVICE_ID` **diselaraskan dengan identitas fisik setiap
+  start** (`src/activation/ota.py`). Ini penting karena `DEVICE_ID` juga
+  dipakai untuk autentikasi WebSocket.
+- Halaman aktivasi kini punya tombol **"Lewati dulu"** (`POST /lewati`).
+  Sebelumnya pengguna yang menolak aktivasi **terkunci total** - hanya ada
+  flag CLI `--skip-activation`.
+
+### Percakapan
+
+- **Pengawas visualizer.** Status `speaking` dari mesin AI bisa macet bila
+  pemutaran audio tersendat (mis. `output underflow` saat berjalan tanpa
+  jendela). Selama visualizer tampil, isi gelembung tidak dirender, sehingga
+  teks jawaban dan kartu peta tersembunyi selamanya. Kini visualizer dilepas
+  bila tak ada suara nyata selama `BATAS_SEPI_BICARA_MS` (10 detik,
+  `webui/src/lib/percakapan.js`), dan penandanya dikunci sampai bicara
+  benar-benar berhenti agar tidak berkedip.
+
+### Pengujian
+
+- Pemeriksa kamera kini memakai **klik sungguhan**
+  (`Input.dispatchMouseEvent`). `element.click()` tidak memicu `pointerdown`,
+  sehingga cacat "bilah geser menyerobot `setPointerCapture`" lolos sebagai
+  lulus.
+- `cek_percakapan_baru.py` menunggu SELA benar-benar berhenti bicara sebelum
+  membaca jawaban, dan menandai pemeriksaan yang bergantung pada aktivasi
+  server sebagai **LEWAT** - bukan GAGAL - bila perangkat belum diaktifkan.
+- Uji baru untuk tombol lewati aktivasi dan pengawas visualizer.
+
+---
+
 ## [1.0.11] - 2026-09-27
 
 **Kata bangun "Hai Hai" akhirnya berfungsi, kamera bisa disembunyikan tanpa

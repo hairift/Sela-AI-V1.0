@@ -19,6 +19,18 @@
  */
 export const MAKS_PANJANG_TEKS = 24
 
+/**
+ * Batas jeda suara sebelum status "bicara" dianggap macet (ms).
+ *
+ * Mesin AI bisa tetap melaporkan ``speaking`` walau pemutaran audio tersendat
+ * (mis. ``output underflow`` saat berjalan tanpa jendela). Selama visualizer
+ * tampil, isi gelembung - termasuk teks jawaban dan kartu peta - TIDAK
+ * dirender. Bila tak ada suara nyata selama jeda ini, visualizer dilepas agar
+ * teks jawaban tetap terbaca. Nilainya jauh di atas jeda antar-kalimat TTS
+ * yang wajar supaya tidak berkedip.
+ */
+export const BATAS_SEPI_BICARA_MS = 10000
+
 /** Titik peta kampus (dari OpenStreetMap: Universitas Catur Insan Cendekia). */
 export const KAMPUS = {
   nama: 'Universitas Catur Insan Cendekia (UCIC)',

@@ -288,6 +288,9 @@ class SelaWebServer:
         app.router.add_route("*", "/api/mcp/tools", self._mcp_tools_handler)
         app.router.add_get("/api/perangkat", self._perangkat_handler)
         app.router.add_post("/api/perangkat/periksa", self._periksa_perangkat_handler)
+        app.router.add_post(
+            "/api/perangkat/identitas-baru", self._identitas_baru_handler
+        )
         app.router.add_post("/api/buka-tautan", self._buka_tautan_handler)
         app.router.add_get("/", self._index_handler)
         # Aset statis (JS/CSS/model 3D).
@@ -468,10 +471,55 @@ class SelaWebServer:
                         "SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", ""
                     )
                     or "",
+                    # Alasan identitas dianggap tidak sah ("" = wajar). Dipakai
+                    # antarmuka untuk menjelaskan kenapa kode aktivasi tidak
+                    # muncul, bukan sekadar menampilkan "sudah aktif".
+                    "identityWarning": identitas.identitas_mencurigakan(),
                 }
             )
         except Exception as e:
             logger.warning(f"SelaWebServer: gagal membaca data perangkat: {e}")
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    async def _identitas_baru_handler(self, request: web.Request) -> web.StreamResponse:
+        """Buat identitas perangkat baru supaya kode aktivasi muncul.
+
+        Dipakai ketika identitas tersimpan tidak sah - mis. MAC adaptor virtual
+        yang nilainya sama di semua komputer, sehingga server xiaozhi menjawab
+        "perangkat sudah terdaftar" dan tidak pernah mengirim kode. Setelah
+        identitas lama disisihkan (TIDAK dihapus), server melihat perangkat
+        yang benar-benar baru dan mengirim kode aktivasi.
+
+        Setelah ini perangkat HARUS didaftarkan ulang di xiaozhi.me. Itu memang
+        tujuannya: pengguna ingin mengikat perangkat ke akunnya sendiri.
+        """
+        try:
+            from src.activation import ActivationService
+            from src.activation.identity import DeviceIdentity
+
+            identitas = DeviceIdentity()
+            cadangan = identitas.reset_identity()
+
+            layanan = await ActivationService.create()
+            hasil = await layanan.initialize()
+            data = layanan.get_activation_data() or {}
+            kode = str(data.get("code") or "")
+
+            # Setelah identitas dibuat ulang, perangkat memang belum aktif.
+            return web.json_response(
+                {
+                    "ok": True,
+                    "backup": cadangan.name if cadangan else "",
+                    "deviceId": identitas.get_mac_address() or "",
+                    "serialNumber": identitas.get_serial_number() or "",
+                    "needActivation": bool(hasil.get("need_activation_ui", False)),
+                    "message": _pesan_aktivasi(hasil.get("message"), hasil),
+                    "error": str(hasil.get("error") or ""),
+                    "code": kode,
+                }
+            )
+        except Exception as e:
+            logger.warning(f"SelaWebServer: gagal membuat identitas baru: {e}")
             return web.json_response({"ok": False, "error": str(e)}, status=500)
 
     async def _periksa_perangkat_handler(self, request: web.Request) -> web.StreamResponse:

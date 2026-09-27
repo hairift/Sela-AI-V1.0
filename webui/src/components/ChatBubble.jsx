@@ -20,6 +20,7 @@ import Visualizer from './Visualizer'
 import PetaKampus from './PetaKampus'
 import { tr } from '../lib/translations'
 import { buangPenandaSisa } from '../lib/teks'
+import { BATAS_SEPI_BICARA_MS } from '../lib/percakapan'
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g
 const TRAILING_PUNCTUATION = /[.,!?;:)\]]$/
@@ -530,10 +531,26 @@ function ChatBubble({
   const [selesai, setSelesai] = useState(!mengetik)
   const tahanRef = useRef(null)
 
+  // Pengawas kebuntuan: status "speaking" dari mesin AI bisa MACET bila
+  // pemutaran audio tersendat (mis. output underflow saat berjalan tanpa
+  // jendela). Selama visualizer tampil, isi gelembung tidak dirender - jadi
+  // bila tak ada suara nyata selama BATAS_SEPI_BICARA_MS, visualizer dilepas
+  // agar teks jawaban tetap terbaca. Kunci sampai bicara benar-benar berhenti
+  // supaya tidak berkedip ketika suara menyusul.
+  const [bicaraMacet, setBicaraMacet] = useState(false)
+  useEffect(() => {
+    if (!isSpeaking) {
+      setBicaraMacet(false)
+      return undefined
+    }
+    const id = setTimeout(() => setBicaraMacet(true), BATAS_SEPI_BICARA_MS)
+    return () => clearTimeout(id)
+  }, [isSpeaking, volume])
+
   // Apakah SELA sedang mengeluarkan suara. Selain status "speaking" dari mesin
   // AI, level suara nyata (data lipsync) juga dipakai: status bisa tertinggal
   // sesaat, sedangkan suara tidak bisa dibohongi.
-  const bersuara = Boolean(isSpeaking) || Number(volume) > 0.02
+  const bersuara = (Boolean(isSpeaking) || Number(volume) > 0.02) && !bicaraMacet
 
   // Efek mengetik: dimulai setelah SELA selesai berbicara, lalu berjalan
   // bertahap. Bila potongan teks baru menyusul, pengetikan melanjutkan dari
