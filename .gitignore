@@ -28,10 +28,11 @@ libs/ffmpeg/
 /build
 /dist
 # Folder sementara saat menukar hasil build (penjaga memblokir penimpaan).
-/build_siap
-/dist_siap
-/build_baru
-/dist_baru
+# Pola lebar: `build`/`dist` + akhiran apa pun (siap, baru, lama, ...).
+# Pernah terjadi: `dist_lama/` dan `build_lama/` ikut ter-commit dan membawa
+# 1.637 berkas hasil build ke dalam repositori (64% dari seluruh berkas).
+/build_*
+/dist_*
 /installer
 *.spec
 .unifypy
