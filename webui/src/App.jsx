@@ -18,6 +18,7 @@ import Settings from './components/Settings'
 import GerbangAdmin from './components/GerbangAdmin'
 import Help from './components/Help'
 import KartuKamera from './components/KartuKamera'
+import SubtitleAI from './components/SubtitleAI'
 import useSelaBridge from './lib/useSelaBridge'
 import { KUNCI_KAMERA, KUNCI_KAMERA_TERBUKA, KUNCI_POSISI_KAMERA, LEBAR_PIL_KAMERA, POSISI_KARTU_BAWAAN, TINGGI_PIL_KAMERA, jepitPosisiKartu } from './lib/percakapan'
 import useUkuranJendela from './lib/useUkuranJendela'
@@ -241,6 +242,31 @@ export default function App() {
     return s ? s.pesan : pesan
   }, [sesiAktif, arsip, pesan])
 
+  // Teks subtitle: jawaban SELA yang terakhir dan masih aktif. Dipakai
+  // SubtitleAI supaya pengguna bisa mengikuti teks selagi SELA berbicara,
+  // sebab isi gelembung obrolan diganti visualizer selama itu.
+  const teksSubtitle = useMemo(() => {
+    for (let i = pesanTampil.length - 1; i >= 0; i -= 1) {
+      const p = pesanTampil[i]
+      if (p && p.peran !== 'user' && p.teks) return String(p.teks)
+    }
+    return ''
+  }, [pesanTampil])
+
+  // Subtitle hanya untuk jawaban terbaru: bila pesan terakhir dari pengguna,
+  // tidak ada yang perlu ditampilkan.
+  //
+  // Patokan "sedang bicara" TIDAK boleh hanya state perangkat: mesin AI
+  // mengayun speaking <-> idle di sela kalimat, sehingga subtitle akan
+  // berkedip hilang-timbul. Energi suara nyata (`lip.v`) dipakai bersama
+  // state, sama seperti visualizer audio di Avatar3D.
+  const pesanTerakhir = pesanTampil.length > 0 ? pesanTampil[pesanTampil.length - 1] : null
+  const adaSuara = Number(lip?.v) > 0.02
+  const subtitleAktif =
+    (stateAvatar === 'speaking' || adaSuara) &&
+    Boolean(pesanTerakhir) &&
+    pesanTerakhir.peran !== 'user'
+
   // Posisi pil kecil pengganti kartu kamera (null selagi kartu dibentangkan).
   // Ikut dihitung ulang saat jendela berubah ukuran, supaya pil tidak pernah
   // tertinggal di luar layar setelah jendela diperkecil.
@@ -393,6 +419,13 @@ export default function App() {
               <div className="pointer-events-auto w-full h-full">
                 <Avatar3D state={stateAvatar} theme={tema} lip={lip} gerakan={gerakan} />
               </div>
+            </div>
+
+            {/* Subtitle: teks jawaban SELA selagi ia berbicara. Diletakkan di
+                atas visualizer audio (bottom-[22%] di Avatar3D) dan hanya
+                menerima klik pada area teksnya sendiri. */}
+            <div className="absolute inset-x-0 bottom-[30%] z-20 flex justify-center pointer-events-none">
+              <SubtitleAI teks={teksSubtitle} aktif={subtitleAktif} />
             </div>
 
             {/* Panel percakapan */}

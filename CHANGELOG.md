@@ -10,6 +10,57 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.13] - 2026-09-28
+
+**Visualizer kini benar-benar bergerak mengikuti suara SELA, ada subtitle
+selagi ia berbicara, dan bubble obrolan merapikan sendiri daftar poin.
+
+### Tampilan
+
+- **Visualizer audio akhirnya mengikuti suara.** Batang visualizer dulu
+  memakai animasi CSS statis sehingga tampak "nge-fix" - bergerak sendiri
+  tanpa hubungan dengan audio. Kini tinggi batang dihitung langsung dari data
+  lipsync mesin AI (`lip.v` = volume RMS audio yang benar-benar diputar,
+  `lip.viseme` = bentuk mulut). Warna batang ikut berubah mengikuti viseme.
+- **Batang tidak lagi mati di sela kalimat.** Mesin AI mengayun status
+  `speaking <-> idle` antar kalimat. Visualizer lama hanya hidup saat status
+  `speaking`, jadi ia menghilang tepat ketika suara masih keluar. Patokannya
+  kini sama dengan gerak mulut avatar: **ada suara bila energi > 0,02**.
+- Batang mengempis mulus saat suara berhenti, tidak menyisakan tinggi
+  terakhir, dan **tidak melewati wadahnya** - tidak ada lagi batang "lember"
+  ke luar area.
+- **Subtitle saat SELA berbicara** (`webui/src/components/SubtitleAI.jsx`),
+  gaya seperti aplikasi SELA Desktop: teks tampil kata demi kata, lalu bertahan
+  sesaat setelah bicara selesai. Subtitle tidak menangkap klik
+  (`pointer-events: none`) sehingga tidak menghalangi tombol di bawahnya, dan
+  pranala panjang dibuang karena sudah disajikan sebagai kartu terpisah.
+
+### Percakapan
+
+- **Penyusun jawaban dipisah jadi modul sendiri**
+  (`webui/src/lib/formatJawaban.js`) supaya bisa diuji. Daftar di dalam satu
+  baris kini dipecah dengan benar: `Fasilitas: - A - B - C` menjadi tiga butir,
+  bukan satu butir berisi semuanya. Rentang angka (`4 - 5 juta`) dan desimal
+  (`250.000`, `1.0.13`) tetap dibiarkan sebagai kalimat biasa.
+
+### Dokumentasi
+
+- `docs/KONFIGURASI_XIAOZHI_ROLE.md` - Role Introduction siap tempel untuk
+  xiaozhi.me (14 aturan, ±522 token, jauh di bawah batas 2000), termasuk aturan
+  baru agar SELA memilih sendiri format jawaban: poin-poin untuk fakta
+  setara, bernomor untuk langkah berurutan.
+
+### Pengujian
+
+- `scripts/cek_visualizer_subtitle.py` - bukti dari DOM sungguhan lewat CDP
+  bahwa batang bergerak mengikuti volume, membedakan besar-kecilnya, tidak
+  melewati wadah, berubah warna mengikuti viseme, mengempis saat sepi, dan
+  subtitle muncul lalu hilang dengan benar. Bundel uji dibangun dengan penanda
+  `VITE_SELA_UJI=1` supaya bundel rilis tetap bersih dari kait uji.
+- `webui/tests/formatJawaban.test.js` - 15 uji untuk penyusun daftar.
+
+---
+
 ## [1.0.12] - 2026-09-27
 
 **Kode aktivasi kembali muncul untuk perangkat baru, pengguna tidak lagi

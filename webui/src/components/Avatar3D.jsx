@@ -55,9 +55,158 @@ const STATE_CONFIG = {
   speaking: { color: 'from-emerald-400/20 to-blue-400/20', pulse: true },
 }
 
-const WAVE_HEIGHTS = [20, 36, 48, 30, 44, 26, 40, 32, 24]
-const WAVE_COLORS = ['bg-blue-300', 'bg-blue-400', 'bg-blue-500', 'bg-indigo-400', 'bg-blue-400', 'bg-blue-300', 'bg-indigo-500', 'bg-blue-400', 'bg-blue-300']
-const WAVE_ANIMS = ['animate-wave-1', 'animate-wave-3', 'animate-wave-2', 'animate-wave-4', 'animate-wave-1', 'animate-wave-5', 'animate-wave-2', 'animate-wave-3', 'animate-wave-1']
+// --- Visualizer audio ---------------------------------------------------
+// Tinggi batang TIDAK lagi memakai animasi CSS statis (dulu `animate-wave-*`),
+// sebab animasi itu berjalan sendiri sehingga tampak "nge-fix" dan tidak
+// berhubungan dengan suara. Kini tinggi batang dihitung dari data lipsync
+// mesin AI: `lip.v` (volume 0..1 hasil RMS audio yang benar-benar diputar) dan
+// `lip.viseme` (bentuk mulut dari centroid spektral). Warna batang ikut berubah
+// mengikuti viseme - sama seperti gerak mulut avatar - lewat kelas di index.css.
+const WAVE_BARS = 9
+
+// Bentuk gelombang tetap (0..1) supaya batang terlihat seperti spektrum, bukan
+// bergerak serempak. Nilainya dipakai sebagai bobot relatif antar-batang.
+const WAVE_SHAPE = [0.45, 0.82, 1.0, 0.62, 0.9, 0.52, 0.86, 0.68, 0.48]
+
+// Tinggi minimum tetap terlihat, tinggi maksimum batang (px).
+const WAVE_MIN_PX = 5
+const WAVE_MAX_PX = 46
+
+// Titik tengah gelombang bergeser perlahan tiap frame supaya terlihat hidup,
+// tetapi amplitudonya tetap ditentukan oleh volume suara asli.
+const WAVE_GESER_HZ = 3.6
+
+// Ambang energi audio dianggap "ada suara nyata" (sama dengan yang dipakai
+// gerak mulut avatar di bawah). Di bawah nilai ini, batang mengempis walau
+// state perangkat masih 'speaking'.
+const ENERGI_SUARA_MIN = 0.02
+
+// Warna batang per viseme. Dipakai langsung sebagai `background` inline karena
+// Tailwind tidak bisa membangkitkan kelas dinamis saat runtime.
+const WAVE_WARNA_VISEME = {
+  a: 'linear-gradient(180deg, #93c5fd 0%, #3b82f6 100%)',
+  i: 'linear-gradient(180deg, #a5b4fc 0%, #6366f1 100%)',
+  u: 'linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 100%)',
+  e: 'linear-gradient(180deg, #c7d2fe 0%, #818cf8 100%)',
+  o: 'linear-gradient(180deg, #bfdbfe 0%, #2563eb 100%)',
+  sil: 'linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%)',
+}
+
+/**
+ * Visualizer batang yang benar-benar mengikuti audio AI.
+ *
+ * Tinggi batang diperbarui lewat `requestAnimationFrame` dengan menyetel
+ * `style.height` langsung ke DOM. Sengaja TIDAK memakai state React: data
+ * lipsync datang ~20x/detik, dan render ulang React/Three setiap paket akan
+ * membuat animasi avatar tersendat.
+ *
+ * PENTING: batang TIDAK digerakkan oleh `state` perangkat sendirian, sebab
+ * mesin AI mengayun `speaking <-> idle` di sela kalimat. Bila bergantung pada
+ * state saja, visualizer mati tepat ketika suara masih keluar. Patokannya sama
+ * dengan yang dipakai mulut avatar: ADA SUARA bila `energi > 0.02`. Di bawah
+ * itu, batang mengempis perlahan supaya tidak menyisakan tinggi terakhir.
+ */
+function VisualizerAudio({ lip, aktif, energiAmbang = ENERGI_SUARA_MIN }) {
+  const wadahRef = useRef(null)
+  const batangRef = useRef([])
+  const lipRef = useRef(lip)
+  const aktifRef = useRef(aktif)
+  lipRef.current = lip
+  aktifRef.current = aktif
+
+  useEffect(() => {
+    let raf = 0
+    let mulai = 0
+    let tingkatLembut = 0
+
+    const isiTinggi = (px) => {
+      for (let i = 0; i < WAVE_BARS; i++) {
+        const el = batangRef.current[i]
+        if (el) el.style.height = `${px[i]}px`
+      }
+    }
+
+    const gambar = (waktu) => {
+      if (!mulai) mulai = waktu
+      const detik = (waktu - mulai) / 1000
+
+      const data = lipRef.current || {}
+      const energi = Math.max(0, Math.min(1, Number(data.v) || 0))
+      // Suara nyata menang atas state: state bisa berkedip idle di sela kalimat.
+      const adaSuara = aktifRef.current || energi > energiAmbang
+      const volume = adaSuara ? energi : 0
+
+      // Redam naik, cepat turun: batang terasa responsif tetapi tidak bergetar.
+      tingkatLembut += (volume - tingkatLembut) * (volume > tingkatLembut ? 0.5 : 0.14)
+      // Hisapan halus ke dasar saat benar-benar sepi, agar batang tidak
+      // menggantung di tinggi sisa paket terakhir.
+      if (!adaSuara && tingkatLembut < 0.004) tingkatLembut = 0
+
+      const tinggi = []
+      for (let i = 0; i < WAVE_BARS; i++) {
+        // Dua gelombang berjalan berlawanan arah agar tidak terlihat mekanis.
+        const fase = (i / WAVE_BARS) * Math.PI * 2
+        const denyut =
+          0.5 +
+          0.5 *
+            Math.sin(detik * WAVE_GESER_HZ * Math.PI * 2 + fase) *
+            Math.cos(detik * WAVE_GESER_HZ * 0.6 * Math.PI * 2 - fase)
+        const bobot = WAVE_SHAPE[i] * (0.55 + 0.45 * denyut)
+        const px = WAVE_MIN_PX + bobot * tingkatLembut * (WAVE_MAX_PX - WAVE_MIN_PX)
+        tinggi.push(Math.round(px))
+      }
+
+      isiTinggi(tinggi)
+
+      const warna =
+        WAVE_WARNA_VISEME[data.viseme] || WAVE_WARNA_VISEME.sil
+      const wadah = wadahRef.current
+      if (wadah) {
+        const tampak = adaSuara || tingkatLembut > 0.01
+        if (wadah.dataset.tampak !== (tampak ? '1' : '0')) {
+          wadah.dataset.tampak = tampak ? '1' : '0'
+          wadah.style.opacity = tampak ? '1' : '0'
+        }
+        if (wadah.dataset.warna !== warna) {
+          wadah.dataset.warna = warna
+          for (const el of batangRef.current) {
+            if (el) el.style.background = warna
+          }
+        }
+      }
+
+      raf = requestAnimationFrame(gambar)
+    }
+
+    raf = requestAnimationFrame(gambar)
+    return () => cancelAnimationFrame(raf)
+  }, [energiAmbang])
+
+  return (
+    <div
+      ref={wadahRef}
+      data-visualizer-audio="1"
+      data-tampak="0"
+      style={{ opacity: 0 }}
+      className="flex items-end justify-center gap-1 h-12 transition-opacity duration-500"
+    >
+      {Array.from({ length: WAVE_BARS }, (_, i) => (
+        <div
+          key={i}
+          ref={(el) => {
+            batangRef.current[i] = el
+          }}
+          className="w-[4px] rounded-full"
+          style={{
+            height: `${WAVE_MIN_PX}px`,
+            background: WAVE_WARNA_VISEME.sil,
+            willChange: 'height',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
 
 // Model v05 memakai `a, i, u, e, o, blink.l, blink.r, blink.all`; versi lama
 // memakai `aa, ih, u, e, o, EyeBlinkLeft, EyeBlinkRight`. Daftar alias
@@ -440,6 +589,11 @@ export default function Avatar3D({ state = 'idle', theme = 'light', gerakan = nu
   const lipRef = useRef(lip)
   lipRef.current = lip
 
+  // Visualizer ikut hidup saat suara nyata terdengar, bukan hanya saat state
+  // perangkat 'speaking' - mesin AI mengayun speaking <-> idle di sela kalimat.
+  const energi = Math.max(0, Number(lip?.v) || 0)
+  const visualAktif = isSpeaking || energi > ENERGI_SUARA_MIN
+
   return (
     <div className="relative w-full h-full select-none flex flex-col items-center">
       <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[90vw] max-w-[800px] h-[60vh] pointer-events-none">
@@ -456,15 +610,7 @@ export default function Avatar3D({ state = 'idle', theme = 'light', gerakan = nu
       </div>
 
       <div className="absolute bottom-[22%] z-20 flex flex-col items-center pointer-events-none">
-        <div className={`flex items-end justify-center gap-1 h-10 transition-all duration-500 ${isSpeaking ? 'opacity-100' : 'opacity-0'}`}>
-          {WAVE_HEIGHTS.map((height, index) => (
-            <div
-              key={index}
-              className={`w-[4px] rounded-full ${WAVE_COLORS[index]} ${isSpeaking ? WAVE_ANIMS[index] : ''}`}
-              style={{ height: `${height}px` }}
-            />
-          ))}
-        </div>
+        <VisualizerAudio lip={lip} aktif={visualAktif} />
       </div>
     </div>
   )

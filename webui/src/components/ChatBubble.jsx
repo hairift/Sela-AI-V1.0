@@ -20,6 +20,7 @@ import Visualizer from './Visualizer'
 import PetaKampus from './PetaKampus'
 import { tr } from '../lib/translations'
 import { buangPenandaSisa } from '../lib/teks'
+import { pisahBlokJawaban } from '../lib/formatJawaban'
 import { BATAS_SEPI_BICARA_MS } from '../lib/percakapan'
 
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g
@@ -30,7 +31,6 @@ const BOLD_GLOBAL = /(\*\*[^*]+\*\*|__[^_]+__)/g
 // supaya keduanya bisa dipakai bersamaan tanpa saling merusak.
 const ITALIC_PATTERN = /(\*[^*\n]+\*)/
 const CODE_PATTERN = /(`[^`\n]+`)/
-const PROTECTED_TOKEN_PREFIX = '__SELA_PROTECTED_'
 const FOLLOW_UP_PATTERN = /(?:^|\s)((?:\[[^\]\n]*\?]\s*(?:\|\s*)?){1,2})\s*$/
 
 // Jawaban dianggap membahas lokasi kampus bila memuat salah satu penanda ini.
@@ -84,61 +84,8 @@ function splitTextByLinks(text = '') {
   return parts
 }
 
-function withProtectedLinks(text = '', formatter) {
-  const links = []
-  const protectedText = String(text || '').replace(URL_PATTERN, (url) => {
-    const token = `${PROTECTED_TOKEN_PREFIX}${links.length}__`
-    links.push(url)
-    return token
-  })
-
-  const formatted = formatter(protectedText)
-  return formatted.replace(
-    new RegExp(`${PROTECTED_TOKEN_PREFIX}(\\d+)__`, 'g'),
-    (_, index) => links[Number(index)] || ''
-  )
-}
-
-function normalizeMarkdownStructure(text = '') {
-  return withProtectedLinks(text, (value) => {
-    let normalized = value
-      .replace(/\r/g, '')
-      .replace(/[ \t]+/g, ' ')
-      .replace(/[ \t]+\n/g, '\n')
-      .replace(/\n[ \t]+/g, '\n')
-      // Penanda tebal gaya lain diubah ke bentuk yang dikenali perender.
-      .replace(/__([^_\n]+)__/g, '**$1**')
-
-    // Poin daftar dari model sering memakai karakter lain. Diseragamkan agar
-    // benar-benar dirender sebagai daftar, bukan kalimat berhamburan.
-    normalized = normalized
-      .replace(/^[\s]*[•·▪◦‣–—]\s+/gm, '- ')
-      .replace(/^([\s]*)([1-9]\d?)\)\s+/gm, '$1$2. ')
-
-    // Jika AI menulis "A: 1. ... 2. ..." atau "A: - ... - ...",
-    // ubah menjadi list markdown yang bisa dirender rapi.
-    normalized = normalized
-      .replace(/:\s+(?=(?:[-*]\s+|(?:[1-9]|[1-9]\d)[.)]\s+))/g, ':\n')
-      .replace(/(^|\n)((?:[1-9]|[1-9]\d)[.)])(?=\S)/g, '$1$2 ')
-      .replace(/([^\n])[\s,;]+((?:[1-9]|[1-9]\d)[.)]\s+)/g, '$1\n$2')
-      // Tanda hubung hanya dianggap awal bullet bila didahului akhir kalimat
-      // atau baris baru. Sebelumnya spasi di sekitar tanda pisah biasa
-      // ("biaya - sekitar empat juta") ikut diubah menjadi bullet sehingga
-      // potongan kalimat tampil sebagai poin daftar.
-      .replace(/([.!?])\s+([-*]\s+(?=[A-Z0-9]))/g, '$1\n$2')
-
-    // Label bagian yang sering muncul dari dataset dibuat sebagai baris sendiri
-    // agar "Program S1:" tidak menempel dengan paragraf sebelumnya.
-    normalized = normalized.replace(
-      /([.!?])\s+((?:Program|Fakultas|Syarat|Langkah|Biaya|Fasilitas|Beasiswa|Kontak|Lokasi)\b[^:\n]{0,60}:)/gi,
-      '$1\n\n$2'
-    )
-
-    return normalized
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  })
-}
+// Perapian struktur dan pemecahan blok dipindah ke lib/formatJawaban.js agar
+// bisa diuji langsung (webui/tests/formatJawaban.test.js) tanpa merender React.
 
 function splitFollowUpSuggestions(text = '') {
   const value = String(text || '').trim()
@@ -166,78 +113,9 @@ function splitFollowUpSuggestions(text = '') {
  * butir, karena urutannya tidak penting (ciri, fasilitas, syarat).
  */
 function splitMarkdownBlocks(text = '') {
-  const lines = normalizeMarkdownStructure(text).split('\n')
-  const blocks = []
-  let paragraphLines = []
-  let activeList = null
-
-  const flushParagraph = () => {
-    if (paragraphLines.length === 0) return
-    blocks.push({
-      type: 'paragraph',
-      content: paragraphLines.join('\n').trim()
-    })
-    paragraphLines = []
-  }
-
-  const flushList = () => {
-    if (!activeList) return
-    blocks.push(activeList)
-    activeList = null
-  }
-
-  lines.forEach((line) => {
-    const trimmed = line.trim()
-
-    if (!trimmed) {
-      flushParagraph()
-      flushList()
-      return
-    }
-
-    const headingMatch = trimmed.match(/^(#{1,3})\s+(.*)$/)
-    if (headingMatch) {
-      flushParagraph()
-      flushList()
-      blocks.push({
-        type: 'heading',
-        level: headingMatch[1].length,
-        content: headingMatch[2]
-      })
-      return
-    }
-
-    const unorderedMatch = trimmed.match(/^[-*]\s+(.*)$/)
-    if (unorderedMatch) {
-      flushParagraph()
-      if (!activeList || activeList.type !== 'unordered-list') {
-        flushList()
-        activeList = { type: 'unordered-list', items: [] }
-      }
-      activeList.items.push(unorderedMatch[1])
-      return
-    }
-
-    const orderedMatch = trimmed.match(/^(\d+)[.)]\s+(.*)$/)
-    if (orderedMatch) {
-      flushParagraph()
-      if (!activeList || activeList.type !== 'ordered-list') {
-        flushList()
-        activeList = { type: 'ordered-list', items: [] }
-      }
-      activeList.items.push(orderedMatch[2])
-      return
-    }
-
-    flushList()
-    paragraphLines.push(line)
-  })
-
-  flushParagraph()
-  flushList()
-
-  return blocks
-}
+  // Delegasi ke modul bersama supaya aturan daftar hanya hidup di satu tempat.
+  return pisahBlokJawaban(text)
+}// eslint-disable-next-line no-unused-vars
 
 /** Render teks kaya: tautan, tebal, miring, dan kode. */
 function renderInlineMarkdown(text = '', keyPrefix = 'inline') {

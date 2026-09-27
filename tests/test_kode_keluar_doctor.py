@@ -121,3 +121,28 @@ def test_dokter_mengembalikan_kode_yang_benar():
             f"Doctor melaporkan 0 kegagalan tetapi mengembalikan kode {kode}. "
             "Seharusnya 0."
         )
+
+
+def test_dokter_tidak_menumpuk_hasil_antar_panggilan():
+    """Memanggil doctor dua kali tidak boleh melipatgandakan daftar hasil.
+
+    `_results` tingkat-modul: tanpa dikosongkan di awal `run_diagnostics()`,
+    panggilan kedua menumpuk hasil pertama. Akibatnya jumlah "diperiksa" dan
+    "gagal" membengkak, dan laporan bisa menyebut kegagalan yang sudah hilang -
+    tepatnya cacat yang membuat uji ini gagal saat dijalankan setelah uji lain
+    yang juga memanggil doctor.
+    """
+    from src.utils import diagnostics
+
+    diagnostics.run_diagnostics()
+    jumlah_pertama = len(diagnostics._results)
+    assert jumlah_pertama > 0, "Doctor tidak mencatat hasil apa pun."
+
+    diagnostics.run_diagnostics()
+    jumlah_kedua = len(diagnostics._results)
+
+    assert jumlah_kedua == jumlah_pertama, (
+        f"Hasil doctor menumpuk: panggilan pertama {jumlah_pertama} baris, "
+        f"kedua {jumlah_kedua} baris. `_results` harus dikosongkan di awal "
+        "run_diagnostics()."
+    )

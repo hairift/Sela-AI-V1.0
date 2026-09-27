@@ -26,7 +26,29 @@ OK = "[ OK ]"
 WARN = "[WARN]"
 FAIL = "[GAGAL]"
 
+# Hasil pemeriksaan terakhir. WAJIB dikosongkan setiap kali run_diagnostics()
+# dipanggil: daftar ini tingkat-modul, jadi tanpa reset pemanggilan kedua (mis.
+# dari dalam satu proses uji, atau dari kode yang memanggil doctor dua kali)
+# akan MENUMPUK hasil lama - jumlah "diperiksa"/"gagal" ikut membengkak dan
+# laporan bisa menyebut kegagalan yang sudah tidak ada.
 _results: list[tuple[str, str, str]] = []
+
+
+def _cetak(teks: str) -> None:
+    """Cetak tanpa pernah melempar.
+
+    Aplikasi terpaket PyInstaller mode ``windowed`` tidak punya konsol, jadi
+    ``sys.stdout`` bisa ``None``. Tanpa penjagaan ini, laporan doctor membuat
+    ``AttributeError`` - dan karena dipanggil dari dalam ``_record``, satu baris
+    laporan bisa menggagalkan seluruh pemeriksaan yang sebenarnya sudah lolos.
+    """
+    aliran = sys.stdout
+    if aliran is None:
+        return
+    try:
+        print(teks, file=aliran, flush=True)
+    except Exception:
+        pass
 
 
 def _record(status: str, name: str, detail: str = "") -> None:
@@ -34,7 +56,7 @@ def _record(status: str, name: str, detail: str = "") -> None:
     line = f"{status} {name}"
     if detail:
         line += f"\n        {detail}"
-    print(line, flush=True)
+    _cetak(line)
 
 
 def _check(name: str, fn: Callable[[], str]) -> None:
@@ -235,16 +257,19 @@ def run_diagnostics() -> int:
     """Jalankan seluruh pemeriksaan. Mengembalikan exit code."""
     from src.constants.system import SystemConstants
 
-    print("=" * 68)
-    print(f"  {SystemConstants.APP_DISPLAY_NAME} - Pemeriksaan Lingkungan (--doctor)")
-    print("=" * 68)
+    # Kosongkan hasil lama supaya pemanggilan berulang tidak menumpuk.
+    _results.clear()
+
+    _cetak("=" * 68)
+    _cetak(f"  {SystemConstants.APP_DISPLAY_NAME} - Pemeriksaan Lingkungan (--doctor)")
+    _cetak("=" * 68)
 
     try:
         from src.utils.config_manager import initialize_config
 
         initialize_config()
     except Exception as e:
-        print(f"{WARN} Konfigurasi belum bisa dimuat: {e}")
+        _cetak(f"{WARN} Konfigurasi belum bisa dimuat: {e}")
 
     _check("Versi Python", _check_python)
     _check("Platform", _check_platform)
@@ -263,13 +288,18 @@ def run_diagnostics() -> int:
     gagal = [r for r in _results if r[0] == FAIL]
     warn = [r for r in _results if r[0] == WARN]
 
-    print("-" * 68)
-    print(f"Ringkasan: {len(_results)} diperiksa, {len(gagal)} gagal, {len(warn)} peringatan")
+    _cetak("-" * 68)
+    _cetak(
+        f"Ringkasan: {len(_results)} diperiksa, {len(gagal)} gagal, {len(warn)} peringatan"
+    )
     if gagal:
-        print("\nPerbaiki dulu item [GAGAL] di atas - itu penyebab fitur tidak jalan.")
+        _cetak("\nPerbaiki dulu item [GAGAL] di atas - itu penyebab fitur tidak jalan.")
         return 1
     if warn:
-        print("\nTidak ada kegagalan fatal. Peringatan di atas bisa diabaikan bila fitur jalan.")
+        _cetak(
+            "\nTidak ada kegagalan fatal. Peringatan di atas bisa diabaikan "
+            "bila fitur jalan."
+        )
     else:
-        print("\nSemua pemeriksaan lolos. Mesin AI siap dipakai.")
+        _cetak("\nSemua pemeriksaan lolos. Mesin AI siap dipakai.")
     return 0

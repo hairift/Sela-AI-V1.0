@@ -68,23 +68,6 @@ body,
   height: 48px;
 }
 
-.wave-bar {
-  width: 4px;
-  border-radius: 9999px;
-  transform-origin: bottom center;
-}
-
-@keyframes waveBar {
-  0%, 100% { transform: scaleY(0.3); }
-  50%       { transform: scaleY(1); }
-}
-
-.animate-wave-1 { animation: waveBar 1s ease-in-out infinite 0s; }
-.animate-wave-2 { animation: waveBar 1s ease-in-out infinite 0.15s; }
-.animate-wave-3 { animation: waveBar 1s ease-in-out infinite 0.3s; }
-.animate-wave-4 { animation: waveBar 1s ease-in-out infinite 0.45s; }
-.animate-wave-5 { animation: waveBar 1s ease-in-out infinite 0.6s; }
-
 .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
 
 /* Scrollbar styling */
@@ -191,12 +174,7 @@ button,
 @media (prefers-reduced-motion: reduce) {
   .animate-float-1,
   .animate-float-2,
-  .animate-float-3,
-  .animate-wave-1,
-  .animate-wave-2,
-  .animate-wave-3,
-  .animate-wave-4,
-  .animate-wave-5 {
+  .animate-float-3 {
     animation: none;
   }
 }
