@@ -46,7 +46,7 @@ selagi ia berbicara, dan bubble obrolan merapikan sendiri daftar poin.
 ### Dokumentasi
 
 - `docs/KONFIGURASI_XIAOZHI_ROLE.md` - Role Introduction siap tempel untuk
-  xiaozhi.me (14 aturan, ±522 token, jauh di bawah batas 2000), termasuk aturan
+  xiaozhi.me (14 aturan, ±660-700 token dari batas 2000), termasuk aturan
   baru agar SELA memilih sendiri format jawaban: poin-poin untuk fakta
   setara, bernomor untuk langkah berurutan.
 

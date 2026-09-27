@@ -22,9 +22,12 @@ tegas.
 ## Batas teknis yang perlu diingat
 
 - **Batas 2000 token** dihitung dari seluruh isi kolom. Naskah di bawah ini
-  memakai sekitar **520-560 token** (2633 karakter) - hanya sedikit lebih banyak
-  dari naskah lama, dan masih menyisakan sekitar **1400 token** bila Anda ingin
-  menambah aturan.
+  memakai **2633 karakter / 387 kata**, yaitu sekitar **660-700 token** pada
+  tokenizer yang lazim dipakai layanan ini. Angka pastinya berbeda sedikit
+  antar-tokenizer, tetapi batas amannya jelas: masih tersisa sekitar
+  **1300 token** bila Anda ingin menambah aturan. Untuk memeriksa sendiri,
+  tempel naskahnya ke kolom Role Introduction - penghitung di sana akan
+  menampilkan `terpakai/2000`.
 - **Tidak ada aksara Han yang boleh muncul di layar.** Mesin kiblat mengirim
   banyak teks Mandarin; berkas kiblat dibiarkan utuh, tetapi perbatasan web
   menerjemahkannya (lihat `_pesan_aktivasi()` di `src/ui/web/server.py`).
