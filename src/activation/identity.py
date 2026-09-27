@@ -20,6 +20,7 @@ import hmac
 import json
 import os
 import platform
+import socket
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -38,6 +39,30 @@ _EFUSE_KEYS = (
     "hmac_key",
     "activation_status",
 )
+
+# Awalan MAC (OUI) milik adaptor VIRTUAL.
+#
+# Identitas perangkat TIDAK boleh diambil dari adaptor ini:
+#   * nilainya bisa hilang/berubah saat perangkat lunak virtualisasi dipasang
+#     ulang, sehingga perangkat yang sama berubah menjadi "perangkat baru";
+#   * nilainya SAMA di semua komputer yang memasang perangkat lunak itu -
+#     jadi banyak pengguna akan berbagi satu identitas perangkat di server.
+# Contoh nyata: 0a:00:27:00:00:10 (VirtualBox host-only) membuat server
+# xiaozhi menganggap setiap komputer baru sebagai "perangkat yang sudah
+# terdaftar", sehingga halaman kode aktivasi tidak pernah muncul.
+_OUI_VIRTUAL_3 = (
+    "0a:00:27",  # VirtualBox host-only
+    "08:00:27",  # VirtualBox NAT
+    "00:05:69",  # VMware (host-only)
+    "00:0c:29",  # VMware
+    "00:1c:14",  # VMware
+    "00:50:56",  # VMware
+    "00:15:5d",  # Hyper-V / WSL
+    "00:16:3e",  # Xen
+    "52:54:00",  # QEMU / KVM
+    "00:ff",     # Windows TAP / VPN
+)
+_OUI_VIRTUAL_2 = ("02:42",)  # Docker bridge (02:42:ac:...)
 
 
 class DeviceIdentity:
@@ -187,18 +212,76 @@ class DeviceIdentity:
         }
 
     def _get_primary_mac_address(self) -> Optional[str]:
+        """MAC adaptor jaringan FISIK utama.
+
+        Sebelumnya fungsi ini mengembalikan MAC dari adaptor pertama yang bukan
+        loopback. Di komputer yang memasang VirtualBox/VMware/Hyper-V/WSL,
+        adaptor pertama justru adaptor VIRTUAL - mis. ``0a:00:27:..`` milik
+        VirtualBox. Akibatnya identitas perangkat diambil dari adaptor yang
+        nilainya sama di semua komputer yang memasang perangkat lunak itu.
+        Gejala nyata: perangkat baru langsung dianggap "sudah terdaftar" di
+        server xiaozhi (karena MAC virtual itu sudah pernah dipakai), sehingga
+        halaman kode aktivasi tidak pernah muncul.
+
+        Adaptor fisik didahulukan, dan di antara yang fisik dipilih yang
+        benar-benar membawa alamat IPv4 (bukan hanya link-local). Bila tidak
+        ada adaptor fisik sama sekali - mis. aplikasi dijalankan di dalam mesin
+        virtual - barulah adaptor apa pun dipakai, supaya perangkat tetap
+        punya identitas.
+
+        Catatan: MAC yang SUDAH tersimpan di ``efuse.json`` tidak diubah oleh
+        fungsi ini. Pemasangan yang sudah ada tetap memakai identitas lamanya,
+        jadi perbaikan ini tidak memaksa aktivasi ulang.
+        """
         try:
-            for iface, addrs in psutil.net_if_addrs().items():
-                if iface.lower().startswith(("lo", "loopback")):
+            try:
+                statistik = psutil.net_if_stats()
+            except Exception:
+                statistik = {}
+
+            daftar = psutil.net_if_addrs()
+            fisik: list[tuple[int, str]] = []
+            cadangan: list[str] = []
+
+            for antarmuka, alamat in daftar.items():
+                if antarmuka.lower().startswith(("lo", "loopback")):
                     continue
-                for snic in addrs:
-                    if snic.family == psutil.AF_LINK and snic.address:
-                        mac = self._normalize_mac(snic.address)
-                        if mac != "00:00:00:00:00:00":
-                            return mac
+                info = statistik.get(antarmuka)
+                if info is not None and not getattr(info, "isup", True):
+                    continue
+                punya_ipv4 = any(
+                    snic.family == socket.AF_INET
+                    and snic.address
+                    and not snic.address.startswith("169.254.")
+                    for snic in alamat
+                )
+                for snic in alamat:
+                    if snic.family != psutil.AF_LINK or not snic.address:
+                        continue
+                    mac = self._normalize_mac(snic.address)
+                    if mac == "00:00:00:00:00:00":
+                        continue
+                    cadangan.append(mac)
+                    if self._mac_virtual(mac):
+                        continue
+                    # 0 = adaptor fisik yang membawa IP (paling utama).
+                    fisik.append((0 if punya_ipv4 else 1, mac))
+
+            if fisik:
+                fisik.sort()
+                return fisik[0][1]
+            if cadangan:
+                return cadangan[0]
         except Exception as e:
             logger.error(f"获取MAC地址失败: {e}", exc_info=True)
         return None
+
+    def _mac_virtual(self, mac: str) -> bool:
+        """Apakah MAC ini milik adaptor virtual?"""
+        m = mac.lower()
+        if any(m.startswith(awalan) for awalan in _OUI_VIRTUAL_3):
+            return True
+        return m[:5] in _OUI_VIRTUAL_2
 
     def _normalize_mac(self, mac: str) -> str:
         clean = "".join(c for c in mac if c.isalnum())

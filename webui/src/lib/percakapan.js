@@ -38,6 +38,58 @@ export const KAMPUS = {
 export const KUNCI_KAMERA = 'sela_kamera_melayang'
 export const KUNCI_KAMERA_TERBUKA = 'sela_kamera_terbuka'
 
+/** Posisi kartu kamera di layar. Dipakai bersama oleh kartunya sendiri dan
+ *  oleh pil kecil yang menggantikannya saat kartu dilipat, supaya pil itu
+ *  muncul persis di tempat kartunya tadi berada (tidak melompat ke sudut). */
+export const KUNCI_POSISI_KAMERA = 'sela_kamera_posisi'
+
+/** Lebar kartu kamera (px). Harus sama dengan ``UKURAN`` di KartuKamera.jsx. */
+export const LEBAR_KARTU_KAMERA = 168
+
+/** Ukuran kartu kamera yang dipakai untuk menjepit posisinya (px).
+ *
+ * Tinggi kartu ikut berubah mengikuti isinya (bilah geser + pratinjau 4:3 +
+ * tombol), jadi angkanya hanya perkiraan. Yang penting: kartu tidak pernah
+ * dibiarkan keluar jendela. */
+export const TINGGI_KARTU_KAMERA = 210
+
+/** Ukuran pil kecil pengganti kartu saat dilipat (px).
+ *
+ * Lebarnya sengaja memakai lebar kartu (lebih lebar dari pil sebenarnya)
+ * supaya pil tidak pernah tersangkut setengah di tepi kanan. */
+export const LEBAR_PIL_KAMERA = 168
+export const TINGGI_PIL_KAMERA = 56
+
+/** Posisi bawaan kartu kamera: di bawah tombol menu, sedikit dari tepi kiri. */
+export const POSISI_KARTU_BAWAAN = { x: 24, y: 96 }
+
+/**
+ * Jepit posisi kartu kamera agar seluruh kartunya tetap di dalam jendela.
+ *
+ * Dipakai di TIGA tempat yang harus sepakat: posisi awal dari penyimpanan,
+ * saat kartu digeser, dan saat jendela berubah ukuran. Sebelumnya kartu hanya
+ * dijepit saat digeser, sehingga jendela yang diperkecil (mis. berpindah ke
+ * mode potret) bisa meninggalkan kartu di luar layar - pengguna melihat
+ * kamera "hilang". Posisi asli TIDAK diubah di sini; hanya nilai tampilnya,
+ * sehingga jendela yang dibesarkan lagi mengembalikan kartu ke tempat semula.
+ *
+ * @param {{x: number, y: number}|null|undefined} posisi posisi yang diinginkan
+ * @param {number} lebar lebar elemen (px)
+ * @param {number} tinggi tinggi elemen (px)
+ * @returns {{x: number, y: number}} posisi yang aman ditampilkan
+ */
+export function jepitPosisiKartu(posisi, lebar, tinggi) {
+  if (typeof window === 'undefined') return { ...POSISI_KARTU_BAWAAN }
+  const x = Number.isFinite(posisi?.x) ? posisi.x : POSISI_KARTU_BAWAAN.x
+  const y = Number.isFinite(posisi?.y) ? posisi.y : POSISI_KARTU_BAWAAN.y
+  const maksX = Math.max(8, window.innerWidth - (lebar || 0) - 8)
+  const maksY = Math.max(8, window.innerHeight - (tinggi || 0) - 8)
+  return {
+    x: Math.round(Math.min(maksX, Math.max(8, x))),
+    y: Math.round(Math.min(maksY, Math.max(8, y))),
+  }
+}
+
 /** Balasan cepat bawaan per topik. Semua di bawah MAKS_PANJANG_TEKS. */
 const BALASAN = {
   kampus: [

@@ -67,6 +67,20 @@ class ProtocolTransport:
 
         self._setup_callbacks()
         self._ensure_audio_consumer()
+        # Sambung-ulang otomatis ke mesin AI.
+        #
+        # Tanpa baris ini, `_auto_reconnect_enabled` tetap False (nilai bawaan
+        # di src/protocols/protocol.py) dan TIDAK ADA satu pun pemanggil
+        # `enable_auto_reconnect()` di seluruh aplikasi. Akibatnya sambungan
+        # yang putus karena jaringan sempat goyang - hal biasa pada Wi-Fi
+        # kampus - tidak pernah dipulihkan sendiri: SELA tetap "Tidak
+        # terhubung" sampai pengguna menekan tombol mikrofon atau berpindah
+        # halaman. Itulah keluhan "si AI ga selalu menyambung terus".
+        #
+        # Penutupan NORMAL oleh server (kode 1000/1001/1005, mis. sesi selesai)
+        # tetap tidak memicu sambung-ulang: `_handle_connection_loss(clean=True)`
+        # keluar lebih dulu. Perilaku itu sengaja dipertahankan.
+        self._protocol.enable_auto_reconnect(True, max_attempts=8)
 
     def set_audio_handler(self, handler: Optional[AudioCallback]) -> None:
         self._incoming_audio_handler = handler
@@ -81,6 +95,9 @@ class ProtocolTransport:
         self._protocol.on_incoming_audio(self._on_incoming_audio)
         self._protocol.on_audio_channel_opened(self._on_audio_channel_opened)
         self._protocol.on_audio_channel_closed(self._on_audio_channel_closed)
+        # Beri tahu antarmuka saat sambung-ulang otomatis berjalan, supaya
+        # status yang dilihat pengguna jujur (bukan diam-diam "Terputus").
+        self._protocol.on_reconnecting(self._on_reconnecting)
 
     def _spawn(self, coro: Awaitable, name: str) -> None:
         """优先走 TaskManager；否则本地 create_task 并记录异常."""
@@ -237,6 +254,23 @@ class ProtocolTransport:
         logger.info("协议通道已关闭")
         await self._event_bus.emit(Events.AUDIO_CHANNEL_CLOSED)
         await self._event_bus.emit(Events.PROTOCOL_DISCONNECTED)
+
+    def _on_reconnecting(self, attempt: int = 0, maks: int = 0) -> None:
+        """Callback sinkron dari protokol saat sambung-ulang dimulai.
+
+        Protokol memanggil callback ini tanpa `await` (lihat
+        ``Protocol._attempt_reconnect``), jadi emit-nya harus dijadwalkan -
+        sama seperti `_on_incoming_json`. Memanggil coroutine tanpa await akan
+        membuangnya diam-diam dan antarmuka tidak pernah tahu.
+        """
+        logger.info(f"Menyambung ulang ke mesin AI ({attempt}/{maks})")
+        self._spawn(
+            self._event_bus.emit(
+                Events.PROTOCOL_RECONNECTING,
+                {"attempt": int(attempt), "max": int(maks)},
+            ),
+            name="protocol:reconnecting",
+        )
 
     def is_audio_channel_opened(self) -> bool:
         try:

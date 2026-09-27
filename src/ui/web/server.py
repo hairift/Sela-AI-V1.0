@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -112,11 +113,88 @@ def _daftar_mcp_mati(cfg) -> list[str]:
         return []
 
 
+def _daftar_kata_bangun(cfg) -> list[str]:
+    """Label kata bangun yang benar-benar aktif (dibaca dari berkas kata kunci).
+
+    Mesin pengenal suara (sherpa-onnx KWS) membaca daftar kata dari
+    ``models/<bahasa>/keywords.txt`` yang disalin ke direktori data pengguna -
+    BUKAN dari ``WAKE_WORD_OPTIONS.WAKE_WORD``. Karena itu antarmuka harus
+    menampilkan isi berkas itu, supaya pengguna tahu kata apa saja yang
+    dikenali, bukan menebak.
+    """
+    try:
+        from src.utils.resource_finder import get_user_keywords_path
+
+        lang = cfg.get_config("WAKE_WORD_OPTIONS.WAKE_WORD_LANG", "en") or "en"
+        jalur = get_user_keywords_path(lang)
+        if not jalur or not jalur.is_file():
+            return []
+        hasil: list[str] = []
+        for baris in jalur.read_text(encoding="utf-8").splitlines():
+            baris = baris.strip()
+            if not baris or baris.startswith("#"):
+                continue
+            pos = baris.rfind("@")
+            if pos < 0:
+                continue
+            label = baris[pos + 1 :].strip()
+            if label and label not in hasil:
+                hasil.append(label)
+        return hasil
+    except Exception as e:
+        logger.debug(f"Gagal membaca daftar kata bangun: {e}")
+        return []
+
+
 def _daftar_kamera() -> list[dict]:
     """Pembungkus tipis agar mudah diganti saat pengujian."""
     from src.mcp.tools.camera.diagnostik import daftar_kamera
 
     return daftar_kamera()
+
+
+# --- Pesan aktivasi -------------------------------------------------------
+#
+# Mesin aktivasi (``src/activation/service.py``) berasal dari py-xiaozhi dan
+# mengirim pesan dalam Bahasa Mandarin. Pesan itu dipakai bersama jalur QML,
+# jadi berkas aslinya tidak diubah - penerjemahannya dilakukan di sini, di
+# perbatasan antarmuka web, supaya SELA tetap berbahasa Indonesia saja.
+_TERJEMAHAN_AKTIVASI = {
+    "v1协议初始化完成": "Inisialisasi protokol v1 selesai",
+    "初始化失败": "Inisialisasi gagal",
+    "设备需要激活": "Perangkat perlu diaktifkan",
+    "设备已激活": "Perangkat sudah aktif",
+    "已自动修复激活状态": "Status aktivasi diperbaiki otomatis",
+    "服务器取消授权，需要重新激活": "Server mencabut izin; perlu aktivasi ulang",
+    "保持本地激活状态": "Status aktivasi lokal dipertahankan",
+}
+
+# Rentang aksara Han yang lazim; dipakai hanya untuk mendeteksi pesan yang
+# belum diterjemahkan, bukan untuk menampilkannya.
+_AKSARA_HAN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf]")
+
+
+def _pesan_aktivasi(pesan: str, hasil: dict) -> str:
+    """Terjemahkan pesan aktivasi ke Bahasa Indonesia.
+
+    Bila pesannya belum dikenal, jangan tampilkan aksara Han ke pengguna -
+    susun kalimat Indonesia dari penanda status yang tersedia.
+    """
+    teks = (pesan or "").strip()
+    if not teks:
+        return ""
+    if teks in _TERJEMAHAN_AKTIVASI:
+        return _TERJEMAHAN_AKTIVASI[teks]
+    if not _AKSARA_HAN.search(teks):
+        return teks
+
+    if hasil.get("need_activation_ui"):
+        return "Perangkat perlu diaktifkan"
+    if hasil.get("local_activated") and hasil.get("server_activated"):
+        return "Perangkat sudah aktif"
+    if hasil.get("local_activated"):
+        return "Status aktivasi lokal dipertahankan"
+    return "Status aktivasi belum pasti"
 
 
 class _PengukurLevel:
@@ -208,6 +286,9 @@ class SelaWebServer:
         app.router.add_get("/api/audio/uji-mikrofon", self._uji_mikrofon_handler)
         app.router.add_route("*", "/api/camera", self._camera_handler)
         app.router.add_route("*", "/api/mcp/tools", self._mcp_tools_handler)
+        app.router.add_get("/api/perangkat", self._perangkat_handler)
+        app.router.add_post("/api/perangkat/periksa", self._periksa_perangkat_handler)
+        app.router.add_post("/api/buka-tautan", self._buka_tautan_handler)
         app.router.add_get("/", self._index_handler)
         # Aset statis (JS/CSS/model 3D).
         if self._dist.is_dir():
@@ -337,11 +418,135 @@ class SelaWebServer:
                 "shortcuts": _ringkas_pintasan(cfg),
                 # --- MCP per-tool ---
                 "mcpDisabled": _daftar_mcp_mati(cfg),
+                # Kata bangun yang BENAR-BENAR aktif (dibaca dari berkas kata
+                # kunci, bukan dari setelan). Dulu antarmuka menampilkan
+                # pemilih kata bangun yang menulis WAKE_WORD_OPTIONS.WAKE_WORD,
+                # padahal kunci itu tidak dibaca oleh mesin pengenal suara -
+                # jadi pemilihnya tidak pernah berpengaruh. Lebih baik
+                # menampilkan daftar yang sesungguhnya.
+                "wakeWords": _daftar_kata_bangun(cfg),
             }
             return web.json_response({"ok": True, "config": data})
         except Exception as e:
             logger.warning(f"SelaWebServer: gagal membaca config: {e}")
             return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    # --- Perangkat & aktivasi ---------------------------------------------
+    #
+    # Pengguna baru sering bertanya: "kenapa aplikasi langsung bisa memakai AI,
+    # padahal py-xiaozhi meminta kode untuk masuk ke xiaozhi.me?" Jawabannya
+    # bergantung pada status aktivasi perangkat. Bagian ini membuat status itu
+    # TERLIHAT, bukan tersembunyi di dalam log, dan menyediakan jalan ke konsol
+    # xiaozhi.me supaya pengguna bisa mengatur agent-nya.
+
+    async def _perangkat_handler(self, request: web.Request) -> web.StreamResponse:
+        """Identitas perangkat + status aktivasi (tanpa panggilan jaringan)."""
+        try:
+            from src.activation.identity import DeviceIdentity
+            from src.utils.config_manager import get_config
+
+            cfg = get_config()
+            identitas = DeviceIdentity()
+            identitas.init_paths()
+            data = identitas.load_efuse_data()
+
+            otoritas = (
+                cfg.get_config("SYSTEM_OPTIONS.NETWORK.AUTHORIZATION_URL", "") or ""
+            ).rstrip("/")
+            return web.json_response(
+                {
+                    "ok": True,
+                    "serialNumber": data.get("serial_number") or "",
+                    "deviceId": data.get("mac_address") or "",
+                    "activated": bool(data.get("activation_status", False)),
+                    "activationVersion": cfg.get_config(
+                        "SYSTEM_OPTIONS.NETWORK.ACTIVATION_VERSION", "v1"
+                    ),
+                    "authorizationUrl": otoritas,
+                    "consoleUrl": f"{otoritas}/console/agents" if otoritas else "",
+                    "serverUrl": cfg.get_config(
+                        "SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", ""
+                    )
+                    or "",
+                }
+            )
+        except Exception as e:
+            logger.warning(f"SelaWebServer: gagal membaca data perangkat: {e}")
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    async def _periksa_perangkat_handler(self, request: web.Request) -> web.StreamResponse:
+        """Periksa ulang status aktivasi ke server xiaozhi.
+
+        Bila server memang belum mengenal perangkat ini, jawabannya memuat kode
+        aktivasi - dan kode itu dikembalikan apa adanya supaya bisa ditampilkan
+        di antarmuka. Bila perangkat sudah terdaftar, server tidak mengirim
+        kode; itu bukan kesalahan.
+        """
+        try:
+            from src.activation import ActivationService
+
+            layanan = await ActivationService.create()
+            hasil = await layanan.initialize()
+            data = layanan.get_activation_data() or {}
+            kode = str(data.get("code") or "")
+            return web.json_response(
+                {
+                    "ok": bool(hasil.get("success", False)),
+                    "needActivation": bool(hasil.get("need_activation_ui", False)),
+                    "localActivated": bool(hasil.get("local_activated", False)),
+                    "serverActivated": bool(hasil.get("server_activated", False)),
+                    "message": _pesan_aktivasi(hasil.get("message"), hasil),
+                    "error": str(hasil.get("error") or ""),
+                    "code": kode,
+                }
+            )
+        except Exception as e:
+            logger.warning(f"SelaWebServer: gagal memeriksa aktivasi: {e}")
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    async def _buka_tautan_handler(self, request: web.Request) -> web.StreamResponse:
+        """Buka tautan di peramban bawaan sistem.
+
+        Hanya alamat http/https yang diizinkan, dan hanya ke host yang memang
+        dipakai aplikasi ini (server xiaozhi + konsolnya). Tanpa batas itu,
+        halaman apa pun yang terbuka di antarmuka bisa meminta aplikasi
+        membuka tautan sembarangan di komputer pengguna.
+        """
+        try:
+            isi = await request.json()
+        except Exception:
+            isi = {}
+        url = str((isi or {}).get("url") or "").strip()
+        if not url:
+            return web.json_response({"ok": False, "error": "url kosong"}, status=400)
+
+        try:
+            from urllib.parse import urlparse
+
+            bagian = urlparse(url)
+        except Exception:
+            bagian = None
+        if not bagian or bagian.scheme not in ("http", "https") or not bagian.hostname:
+            return web.json_response({"ok": False, "error": "url tidak sah"}, status=400)
+
+        host = bagian.hostname.lower()
+        if not any(host == h or host.endswith("." + h) for h in self._HOST_TAUTAN):
+            logger.warning(f"SelaWebServer: tautan ke host {host} ditolak")
+            return web.json_response(
+                {"ok": False, "error": "host tidak diizinkan"}, status=403
+            )
+
+        try:
+            from src.ui.web.launcher import _buka_peramban_bawaan
+
+            berhasil = await asyncio.to_thread(_buka_peramban_bawaan, url)
+        except Exception as e:
+            logger.warning(f"SelaWebServer: gagal membuka tautan: {e}")
+            berhasil = False
+        return web.json_response({"ok": bool(berhasil), "url": url})
+
+    # Host yang boleh dibuka aplikasi di peramban bawaan sistem.
+    _HOST_TAUTAN = ("xiaozhi.me", "tenclass.net")
 
     async def _camera_handler(self, request: web.Request) -> web.StreamResponse:
         """Daftar kamera + uji kamera (setara CameraTab py-xiaozhi).

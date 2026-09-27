@@ -60,10 +60,6 @@ function Sakelar({ aktif, onChange, disabled }) {
   )
 }
 
-// Kata bangun yang tersedia di models/en/keywords.txt. Model KWS berbasis BPE
-// sehingga kata apa pun bisa ditambahkan lewat tokennya.
-const KATA_BANGUN = ['SELA', 'Hai Hai']
-
 // Mesin kamera (backend OpenCV). "auto" membiarkan OpenCV memilih sendiri.
 const BACKEND_KAMERA = [
   { value: 'auto', label: 'Otomatis' },
@@ -117,6 +113,62 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
   const [mcpTools, setMcpTools] = useState([])
   const [mcpMemuat, setMcpMemuat] = useState(false)
   const [mcpCari, setMcpCari] = useState('')
+  // --- Perangkat & aktivasi ---
+  const [infoPerangkat, setInfoPerangkat] = useState(null)
+  const [periksaPerangkat, setPeriksaPerangkat] = useState(false)
+  const [hasilPeriksa, setHasilPeriksa] = useState(null)
+  const [salinan, setSalinan] = useState('')
+
+  const muatPerangkat = async () => {
+    try {
+      const r = await fetch('/api/perangkat')
+      const d = await r.json()
+      if (d.ok) setInfoPerangkat(d)
+    } catch (_) {
+      // Biarkan data lama tetap tampil.
+    }
+  }
+
+  const periksaAktivasi = async () => {
+    setPeriksaPerangkat(true)
+    setHasilPeriksa(null)
+    try {
+      const r = await fetch('/api/perangkat/periksa', { method: 'POST' })
+      const d = await r.json()
+      setHasilPeriksa(d.ok || d.code || d.needActivation ? d : { ...d, ok: false })
+      await muatPerangkat()
+    } catch (_) {
+      setHasilPeriksa({ ok: false, error: t.id.perangkatGagal })
+    } finally {
+      setPeriksaPerangkat(false)
+    }
+  }
+
+  const bukaKonsol = async (url) => {
+    if (!url) return
+    try {
+      const r = await fetch('/api/buka-tautan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const d = await r.json()
+      if (!d.ok) setGalat(t.id.perangkatTautanGagal)
+    } catch (_) {
+      setGalat(t.id.perangkatTautanGagal)
+    }
+  }
+
+  const salinTeks = async (teks) => {
+    if (!teks) return
+    try {
+      await navigator.clipboard.writeText(teks)
+      setSalinan(teks)
+      setTimeout(() => setSalinan(''), 1500)
+    } catch (_) {
+      // Papan klip bisa ditolak peramban; abaikan diam-diam.
+    }
+  }
 
   const muatKamera = async () => {
     setKameraMemuat(true)
@@ -261,6 +313,7 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
       // satunya tidak membuat seluruh halaman pengaturan gagal dibuka.
       muatKamera()
       muatMcp()
+      muatPerangkat()
     } catch (e) {
       setGalat('Tidak bisa menghubungi mesin AI. Pastikan aplikasi SELA sedang berjalan.')
     }
@@ -351,18 +404,22 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
             label={t.id.wakeWordChoice}
             keterangan={t.id.wakeWordChoiceDesc}
           >
-            <select
-              value={config?.wakeWordText || 'SELA'}
-              disabled={!config}
-              onChange={(e) => simpan({ wakeWordText: e.target.value })}
-              className="max-w-[190px] text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-gray-300 outline-none"
-            >
-              {KATA_BANGUN.map((k) => (
-                <option key={k} value={k}>
-                  {k === 'SELA' ? 'SELA' : 'Hai Hai'}
-                </option>
+            {/* Daftar kata yang BENAR-BENAR dikenali, dibaca dari berkas kata
+                kunci mesin pengenal suara. Dulu di sini ada pemilih kata yang
+                menulis WAKE_WORD_OPTIONS.WAKE_WORD - kunci yang tidak pernah
+                dibaca oleh pengenal suara, sehingga memilih "Hai Hai" tidak
+                mengubah apa pun dan terasa seperti rusak. */}
+            <span className="flex items-center gap-1.5 flex-wrap justify-end max-w-[230px]">
+              {(config?.wakeWords?.length ? config.wakeWords : ['SELA']).map((k) => (
+                <span
+                  key={k}
+                  data-kata-bangun={k}
+                  className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-blue-500/12 text-blue-600 dark:text-blue-400"
+                >
+                  {k}
+                </span>
               ))}
-            </select>
+            </span>
           </Baris>
           <Baris
             label={t.id.wakeWordSensitivity}
@@ -626,6 +683,112 @@ export default function Settings({ onBack, theme, setTheme, terhubung = false })
                 ))}
               </div>
             )}
+          </div>
+        </Kartu>
+
+        <Kartu judul={t.id.sectionPerangkat}>
+          <div className="px-5 py-3 space-y-3">
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+              {t.id.perangkatDesc}
+            </p>
+
+            <Baris label={t.id.perangkatSerial}>
+              <span className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 max-w-[190px] truncate">
+                  {infoPerangkat?.serialNumber || t.id.perangkatKosong}
+                </span>
+                {infoPerangkat?.serialNumber && (
+                  <button
+                    type="button"
+                    data-salin-serial="1"
+                    onClick={() => salinTeks(infoPerangkat.serialNumber)}
+                    className="text-[10px] px-2 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700"
+                  >
+                    {salinan === infoPerangkat.serialNumber ? t.id.perangkatDisalin : t.id.perangkatSalin}
+                  </button>
+                )}
+              </span>
+            </Baris>
+
+            <Baris label={t.id.perangkatId}>
+              <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300">
+                {infoPerangkat?.deviceId || t.id.perangkatKosong}
+              </span>
+            </Baris>
+
+            <Baris label={t.id.perangkatStatus}>
+              <span
+                data-perangkat-status={infoPerangkat?.activated ? 'aktif' : 'belum'}
+                className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${
+                  infoPerangkat?.activated
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                {infoPerangkat?.activated ? t.id.perangkatAktif : t.id.perangkatBelum}
+              </span>
+            </Baris>
+
+            <Baris label={t.id.perangkatVersi}>
+              <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400">
+                {infoPerangkat?.activationVersion || '-'}
+              </span>
+            </Baris>
+
+            <div className="pt-1 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  data-periksa-aktivasi="1"
+                  onClick={periksaAktivasi}
+                  disabled={periksaPerangkat}
+                  className="text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-40"
+                >
+                  {periksaPerangkat ? t.id.perangkatMemeriksa : t.id.perangkatPeriksa}
+                </button>
+                <button
+                  type="button"
+                  data-konsol-xiaozhi="1"
+                  onClick={() => bukaKonsol(infoPerangkat?.consoleUrl)}
+                  disabled={!infoPerangkat?.consoleUrl}
+                  className="text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-700 text-white font-semibold hover:bg-slate-800 disabled:opacity-40"
+                >
+                  {t.id.perangkatKonsol}
+                </button>
+              </div>
+
+              {hasilPeriksa?.code && (
+                <div
+                  data-kode-aktivasi="1"
+                  className="rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 space-y-1"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500">
+                    {t.id.perangkatKode}
+                  </p>
+                  <p className="text-lg font-mono font-bold text-blue-700 dark:text-blue-300 tracking-wider">
+                    {hasilPeriksa.code}
+                  </p>
+                  <p className="text-[10px] text-blue-600/80 dark:text-blue-300/80 leading-relaxed">
+                    {t.id.perangkatKodeHint}
+                  </p>
+                </div>
+              )}
+
+              {hasilPeriksa && !hasilPeriksa.code && (
+                <p
+                  data-hasil-periksa={hasilPeriksa.ok ? 'ok' : 'gagal'}
+                  className="text-[10px] text-gray-400 dark:text-gray-500 leading-relaxed"
+                >
+                  {hasilPeriksa.ok
+                    ? t.id.perangkatSudahTerdaftar
+                    : hasilPeriksa.error || t.id.perangkatGagal}
+                </p>
+              )}
+
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                {t.id.perangkatKonsolDesc}
+              </p>
+            </div>
           </div>
         </Kartu>
 

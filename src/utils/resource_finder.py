@@ -531,10 +531,93 @@ def get_config_dir() -> Path:
     return get_app_root() / "config"
 
 
+# Versi daftar kata kunci bawaan. **Naikkan angka ini setiap kali daftar di
+# ``models/<lang>/keywords.txt`` berubah**, supaya salinan milik pengguna yang
+# sudah ada ikut mendapat kata kunci baru. Tanpa ini, berkas pengguna dibuat
+# sekali saat pemasangan pertama dan tidak pernah diperbarui lagi - sehingga
+# pengguna lama tidak akan pernah bisa memakai kata kunci yang baru
+# ditambahkan (mis. "Hai Hai" atau "Hello Sela").
+VERSI_KATA_KUNCI_BAWAAN = 2
+
+
+def _label_kata_kunci(baris: str) -> "str | None":
+    """Ambil label (teks setelah ``@``) dari satu baris kata kunci."""
+    teks = baris.strip()
+    if not teks or teks.startswith("#"):
+        return None
+    pos = teks.rfind("@")
+    if pos < 0:
+        return None
+    label = teks[pos + 1 :].strip()
+    return label or None
+
+
+def _versi_kata_kunci_tersimpan(folder: Path, lang: str) -> int:
+    """Versi daftar bawaan yang terakhir digabungkan ke berkas pengguna."""
+    berkas = folder / f"{lang}_keywords.versi"
+    try:
+        return int(berkas.read_text(encoding="utf-8").strip() or "0")
+    except (OSError, ValueError):
+        return 0
+
+
+def _tulis_versi_kata_kunci(folder: Path, lang: str) -> None:
+    try:
+        (folder / f"{lang}_keywords.versi").write_text(
+            f"{VERSI_KATA_KUNCI_BAWAAN}\n", encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
+def _gabungkan_kata_kunci_bawaan(
+    user_keywords: Path, default_keywords: Path
+) -> list[str]:
+    """Tambahkan kata kunci bawaan yang belum ada di berkas pengguna.
+
+    Bersifat **aditif**: kata kunci buatan pengguna tidak pernah dihapus atau
+    ditimpa. Baris dianggap sama bila labelnya sama (tidak peka huruf besar
+    kecil), sehingga berkas yang sudah punya ``@Sela`` tidak ditambah lagi.
+
+    Kembalikan daftar baris yang baru ditambahkan.
+    """
+    try:
+        teks_pengguna = user_keywords.read_text(encoding="utf-8", errors="replace")
+        teks_bawaan = default_keywords.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    label_pengguna = {
+        label.lower()
+        for label in (_label_kata_kunci(b) for b in teks_pengguna.splitlines())
+        if label
+    }
+
+    tambahan = []
+    for baris in teks_bawaan.splitlines():
+        label = _label_kata_kunci(baris)
+        if label and label.lower() not in label_pengguna:
+            tambahan.append(baris.strip())
+            label_pengguna.add(label.lower())
+
+    if not tambahan:
+        return []
+
+    # Pastikan berkas diakhiri baris baru sebelum menambah.
+    awalan = "" if (not teks_pengguna or teks_pengguna.endswith("\n")) else "\n"
+    try:
+        with open(user_keywords, "a", encoding="utf-8") as berkas:
+            berkas.write(awalan + "".join(b + "\n" for b in tambahan))
+    except OSError:
+        return []
+    return tambahan
+
+
 def get_user_keywords_path(lang: str) -> Path:
     """获取 keywords 路径，始终使用用户目录
 
-    首次运行时自动从安装目录复制默认文件到用户目录。
+    首次运行时自动从安装目录复制默认文件到用户目录，并在 daftar bawaan
+    berubah时把 kata kunci baru ikut digabungkan (aditif).
 
     Args:
         lang: 语言代码，如 "zh" 或 "en"
@@ -546,12 +629,34 @@ def get_user_keywords_path(lang: str) -> Path:
 
     user_keywords_dir = get_keywords_dir()
     user_keywords = user_keywords_dir / f"{lang}_keywords.txt"
+    default_keywords = get_app_root() / "models" / lang / "keywords.txt"
 
     if not user_keywords.exists():
         # 从安装目录复制默认文件
-        default_keywords = get_app_root() / "models" / lang / "keywords.txt"
         if default_keywords.exists():
             user_keywords_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(default_keywords, user_keywords)
+            _tulis_versi_kata_kunci(user_keywords_dir, lang)
+        return user_keywords
+
+    # Berkas pengguna sudah ada. Berkas ini dibuat sekali saat pemasangan
+    # pertama, jadi kata kunci yang ditambahkan pada versi aplikasi berikutnya
+    # tidak akan pernah sampai ke pengguna lama. Gabungkan bila versi daftar
+    # bawaan sudah naik.
+    if (
+        default_keywords.exists()
+        and _versi_kata_kunci_tersimpan(user_keywords_dir, lang)
+        < VERSI_KATA_KUNCI_BAWAAN
+    ):
+        tambahan = _gabungkan_kata_kunci_bawaan(user_keywords, default_keywords)
+        if tambahan:
+            # Impor lokal: hindari impor melingkar saat modul dimuat.
+            from src.logging import get_logger
+
+            get_logger().info(
+                f"Kata kunci bawaan baru ditambahkan ke {user_keywords.name}: "
+                f"{', '.join(tambahan)}"
+            )
+        _tulis_versi_kata_kunci(user_keywords_dir, lang)
 
     return user_keywords

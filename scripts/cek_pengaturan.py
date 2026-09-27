@@ -47,6 +47,7 @@ BAGIAN_WAJIB = [
     "Kamera",
     "Pintasan Papan Tik",
     "Alat (MCP)",
+    "Perangkat & Aktivasi",
     "Log Mesin AI",
     "Tentang Aplikasi",
 ]

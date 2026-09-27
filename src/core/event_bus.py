@@ -30,6 +30,9 @@ class Events:
 
     # 网络错误
     NETWORK_ERROR = "network_error"
+    # 自动重连进行中（payload: dict {"attempt": int, "max": int}）。
+    # Dipakai antarmuka agar status jujur: "Menyambung ulang… (2/8)".
+    PROTOCOL_RECONNECTING = "protocol_reconnecting"
 
     # 音频通道
     AUDIO_CHANNEL_OPENED = "audio_channel_opened"

@@ -10,6 +10,85 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.11] - 2026-09-27
+
+**Kata bangun "Hai Hai" akhirnya berfungsi, kamera bisa disembunyikan tanpa
+mati, dan perangkat baru kembali punya identitas sendiri.**
+
+### Kamera
+
+- Tombol **tanda silang diganti tombol panah** (chevron) untuk melipat kartu
+  kamera, sama seperti panel obrolan.
+- **Melipat TIDAK lagi mematikan kamera.** Sebelumnya kartu dilepas dari React
+  saat dilipat, sehingga `getUserMedia` berhenti dan SELA tidak bisa lagi
+  menjawab "saya lagi ngapain?". Sekarang kartunya tetap terpasang dan hanya
+  disembunyikan secara visual (`opacity-0`) - peramban berhenti menghasilkan
+  bingkai begitu elemennya tidak digambar lagi.
+- Pil kecil pengganti kartu kini **muncul persis di posisi terakhir kartunya**
+  dan meniru gaya kartu "Buka Chat", lengkap dengan titik hijau penanda SELA
+  masih melihat. Di v1.0.10 ikon pelipat dipaku di `top-24 left-6` (sudut kiri
+  atas), sehingga setiap kali lipatan diterapkan ulang - dan itu terjadi tiap
+  kali pengguna kembali dari halaman Pengaturan - ikon kamera melompat ke kiri
+  layar. Itulah keluhan "tampilannya condong ke kiri".
+- Posisi kartu dan pil **dijepit ke dalam jendela**, sehingga jendela yang
+  diperkecil atau berpindah ke mode potret tidak meninggalkan kamera di luar
+  layar.
+
+### Kata bangun (wake word)
+
+- **Akar masalah ditemukan.** Berkas kata kunci harus memakai penggalan token
+  yang **sama persis** dengan tokenizer model. Model `models/en` memakai
+  kosakata HURUF BESAR, sehingga baris `▁HA I ▁HA I @Hai Hai` membuat
+  sherpa-onnx mencetak `Cannot find ID for token Hai` lalu memanggil
+  `exit(-1)` - proses Python mati seketika dan `try/except` tidak bisa
+  menahannya. Penggalan yang benar diverifikasi langsung dengan
+  `sherpa_onnx.text2token`.
+- Tiga kata bangun sekarang **sah dan aktif bersamaan**:
+  `Sela`, `HaiHai`, dan `HelloSela`.
+- Salinan kata kunci milik pengguna lama ikut diperbarui lewat penggabungan
+  berversi (`VERSI_KATA_KUNCI_BAWAAN`). Sebelumnya salinan itu dibuat sekali
+  lalu tidak pernah diperbarui, sehingga kata bangun baru tidak pernah sampai
+  ke pengguna yang sudah memasang aplikasi.
+- **Pengaturan menampilkan kata bangun yang benar-benar aktif**, dibaca dari
+  berkas kata kunci mesin pengenal suara. Pemilih kata yang lama menulis
+  `WAKE_WORD_OPTIONS.WAKE_WORD` - kunci yang tidak pernah dibaca oleh pengenal
+  suara - sehingga memilih "Hai Hai" tidak mengubah apa pun dan terasa rusak.
+
+### Sambungan AI
+
+- **Sambung-ulang otomatis dinyalakan.** Mesin sambung-ulang sudah ada di
+  `Protocol` sejak awal, tetapi `enable_auto_reconnect()` tidak pernah
+  dipanggil di mana pun, sehingga sambungan yang putus karena jaringan goyang
+  tidak pernah dipulihkan sendiri: SELA tetap "Tidak terhubung" sampai
+  pengguna menekan tombol mikrofon. Sekarang delapan percobaan dengan mundur
+  eksponensial, dan jatahnya pulih setiap sambungan berhasil.
+- Antarmuka menampilkan **"Menyambung ulang… (n/m)"** alih-alih diam-diam
+  "Terputus". Penutupan normal oleh server (sesi selesai) tetap tidak memicu
+  sambung-ulang - itu bukan kerusakan.
+
+### Identitas perangkat & aktivasi
+
+- **Adaptor jaringan fisik didahulukan.** Sebelumnya MAC diambil dari adaptor
+  pertama yang bukan loopback. Di komputer yang memasang VirtualBox, adaptor
+  pertama justru adaptor virtual dengan MAC `0a:00:27:00:00:10` - nilai yang
+  **sama di semua komputer** yang memasang perangkat lunak itu. Akibatnya
+  perangkat baru dianggap "sudah terdaftar" oleh server, sehingga halaman kode
+  aktivasi tidak pernah muncul, dan banyak pengguna berbagi satu identitas
+  perangkat. `efuse.json` yang sudah ada tidak diubah, jadi pemasangan lama
+  tidak dipaksa aktivasi ulang.
+- Bagian **"Perangkat & Aktivasi"** di Pengaturan menampilkan nomor seri, ID
+  perangkat, status aktivasi, tombol **Periksa Ulang**, dan tombol **Buka
+  Konsol xiaozhi.me**. Bila server memang mengirim kode aktivasi, kodenya
+  ditampilkan besar-besar beserta petunjuk pemakaiannya. Tautan hanya boleh
+  menuju host yang dipakai aplikasi ini.
+- Pesan status aktivasi **diterjemahkan ke Bahasa Indonesia**. Mesin aktivasi
+  berasal dari py-xiaozhi dan mengirim pesan berbahasa Mandarin (`设备已激活`);
+  berkas aslinya dipakai bersama jalur QML sehingga dibiarkan utuh, dan
+  penerjemahannya dilakukan di perbatasan antarmuka web. Pesan asing yang belum
+  dikenal pun tidak akan menampilkan aksara Han ke pengguna.
+
+---
+
 ## [1.0.10] - 2026-09-27
 
 **Aplikasi Windows akhirnya benar-benar bisa dibuka.**

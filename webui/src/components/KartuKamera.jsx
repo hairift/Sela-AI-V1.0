@@ -14,31 +14,47 @@
  *      kamera py-xiaozhi sudah punya gambar yang masih segar. SELA seolah
  *      melihat terus.
  *
- * Kartu bisa digeser, dilipat jadi ikon kecil (tombol silang), dan
- * dimatikan total dari halaman Pengaturan.
+ * Kartu bisa digeser, dilipat jadi pil kecil (tombol panah), dan dimatikan
+ * total dari halaman Pengaturan.
+ *
+ * PENTING - kartu ini TIDAK dilepas dari React saat dilipat. Komponen tetap
+ * terpasang dan hanya disembunyikan secara visual (``opacity-0``), karena
+ * melepasnya akan menghentikan ``getUserMedia`` dan timer bingkai hidup.
+ * Akibatnya SELA tidak lagi bisa menjawab "saya lagi ngapain?" padahal
+ * pengguna hanya ingin menyembunyikan kartunya. Jangan ganti ``opacity-0``
+ * menjadi ``hidden`` / ``display:none`` / melepas komponen: peramban
+ * menghentikan produksi bingkai video begitu elemennya tidak digambar lagi.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { t } from '../lib/translations'
+import {
+  KUNCI_POSISI_KAMERA,
+  LEBAR_KARTU_KAMERA,
+  POSISI_KARTU_BAWAAN,
+  TINGGI_KARTU_KAMERA,
+  jepitPosisiKartu,
+} from '../lib/percakapan'
+import useUkuranJendela from '../lib/useUkuranJendela'
 
-const UKURAN = 168
-const KUNCI_POSISI = 'sela_kamera_posisi'
+const UKURAN = LEBAR_KARTU_KAMERA
+const KUNCI_POSISI = KUNCI_POSISI_KAMERA
 
 /** Jeda antar bingkai hidup. Harus lebih pendek dari masa segar bingkai di
  *  sisi Python (``MAKS_UMUR_BINGKAI_S`` = 12 detik). */
 const JEDA_HIDUP_MS = 5000
 
 function posisiAwal() {
-  if (typeof window === 'undefined') return { x: 24, y: 96 }
+  if (typeof window === 'undefined') return { ...POSISI_KARTU_BAWAAN }
   try {
     const tersimpan = JSON.parse(localStorage.getItem(KUNCI_POSISI) || 'null')
     if (tersimpan && Number.isFinite(tersimpan.x) && Number.isFinite(tersimpan.y)) {
-      return tersimpan
+      return { x: tersimpan.x, y: tersimpan.y }
     }
   } catch (_) {
     // diabaikan
   }
-  return { x: 24, y: 96 }
+  return { ...POSISI_KARTU_BAWAAN }
 }
 
 export default function KartuKamera({
@@ -46,21 +62,38 @@ export default function KartuKamera({
   onBingkai,
   onBingkaiHidup,
   onTutup,
+  onSiap,
+  tersembunyi = false,
 }) {
   const [posisi, setPosisi] = useState(posisiAwal)
   const [galat, setGalat] = useState('')
   const [siap, setSiap] = useState(false)
   const [kilat, setKilat] = useState(false)
 
+  // Posisi yang BENAR-BENAR ditampilkan. Posisi asli (dari penyimpanan atau
+  // hasil geser) tetap disimpan apa adanya, lalu dijepit ke dalam jendela.
+  // Dengan begitu jendela yang diperkecil tidak meninggalkan kartu di luar
+  // layar, dan jendela yang dibesarkan lagi mengembalikannya ke tempat semula.
+  const { lebar: lebarJendela, tinggi: tinggiJendela } = useUkuranJendela()
+  const posisiTampil = useMemo(
+    () => jepitPosisiKartu(posisi, UKURAN, TINGGI_KARTU_KAMERA),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [posisi, lebarJendela, tinggiJendela],
+  )
+
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const seretRef = useRef(null)
-  const posisiRef = useRef(posisi)
-  posisiRef.current = posisi
+  const posisiRef = useRef(posisiTampil)
+  // Dipakai penyeretan: harus posisi TAMPIL, bukan posisi keinginan, supaya
+  // kartu tidak melompat saat mulai diseret setelah jendela diperkecil.
+  posisiRef.current = posisiTampil
   const onBingkaiRef = useRef(onBingkai)
   onBingkaiRef.current = onBingkai
   const onBingkaiHidupRef = useRef(onBingkaiHidup)
   onBingkaiHidupRef.current = onBingkaiHidup
+  const onSiapRef = useRef(onSiap)
+  onSiapRef.current = onSiap
   // Nonce terakhir yang sudah diproses, supaya satu permintaan = satu foto.
   const nonceRef = useRef(permintaan.nonce)
 
@@ -136,6 +169,13 @@ export default function KartuKamera({
     return () => clearInterval(timer)
   }, [siap, potret])
 
+  // Beri tahu induk apakah kamera benar-benar menyala. Dipakai pil kecil yang
+  // menggantikan kartu saat dilipat, supaya pengguna tetap tahu SELA melihat
+  // walau kartunya disembunyikan.
+  useEffect(() => {
+    onSiapRef.current?.(siap)
+  }, [siap])
+
   // Permintaan foto dari mesin AI atau dari teks pengguna.
   useEffect(() => {
     if (permintaan.nonce === nonceRef.current) return
@@ -153,12 +193,13 @@ export default function KartuKamera({
   const seretKartu = (e) => {
     const s = seretRef.current
     if (!s) return
-    const maksX = Math.max(0, window.innerWidth - UKURAN - 8)
-    const maksY = Math.max(0, window.innerHeight - UKURAN - 8)
-    setPosisi({
-      x: Math.min(maksX, Math.max(8, e.clientX - s.dx)),
-      y: Math.min(maksY, Math.max(8, e.clientY - s.dy)),
-    })
+    setPosisi(
+      jepitPosisiKartu(
+        { x: e.clientX - s.dx, y: e.clientY - s.dy },
+        UKURAN,
+        TINGGI_KARTU_KAMERA,
+      ),
+    )
   }
 
   const lepasSeret = () => {
@@ -174,8 +215,12 @@ export default function KartuKamera({
   return (
     <div
       data-kamera="1"
-      className="fixed z-40 select-none"
-      style={{ left: posisi.x, top: posisi.y, width: UKURAN }}
+      data-kamera-tersembunyi={tersembunyi ? '1' : '0'}
+      aria-hidden={tersembunyi || undefined}
+      className={`fixed z-40 select-none transition-all duration-300 ease-out ${
+        tersembunyi ? 'opacity-0 pointer-events-none -translate-y-1' : 'opacity-100'
+      }`}
+      style={{ left: posisiTampil.x, top: posisiTampil.y, width: UKURAN }}
     >
       <div className="rounded-2xl overflow-hidden bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-2xl">
         {/* Bilah geser */}
@@ -205,11 +250,12 @@ export default function KartuKamera({
             type="button"
             data-kamera-lipat="1"
             onClick={onTutup}
-            className="w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all"
+            className="w-5 h-5 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all"
             title={t.id.cameraHide}
+            aria-label={t.id.cameraHide}
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.6} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.6} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
         </div>

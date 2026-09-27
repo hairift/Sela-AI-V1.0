@@ -19,13 +19,14 @@ import GerbangAdmin from './components/GerbangAdmin'
 import Help from './components/Help'
 import KartuKamera from './components/KartuKamera'
 import useSelaBridge from './lib/useSelaBridge'
-import { KUNCI_KAMERA, KUNCI_KAMERA_TERBUKA } from './lib/percakapan'
+import { KUNCI_KAMERA, KUNCI_KAMERA_TERBUKA, KUNCI_POSISI_KAMERA, LEBAR_PIL_KAMERA, POSISI_KARTU_BAWAAN, TINGGI_PIL_KAMERA, jepitPosisiKartu } from './lib/percakapan'
+import useUkuranJendela from './lib/useUkuranJendela'
 import { t } from './lib/translations'
 
-/** Ikon kamera (lensa) untuk tombol kecil pelipat kartu kamera. */
+/** Ikon kamera (lensa) untuk pil kecil pengganti kartu kamera. */
 function IconLensa() {
   return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24">
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.9} viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -128,6 +129,30 @@ function kameraTerbukaAwal() {
   }
 }
 
+/**
+ * Posisi pil kecil pengganti kartu kamera saat kartunya dilipat.
+ *
+ * Dibaca dari posisi terakhir kartunya, supaya pil muncul persis di tempat
+ * kartu tadi berada - bukan melompat ke sudut layar. Nilainya dijepit agar
+ * pil tidak keluar dari jendela.
+ *
+ * Catatan riwayat: di v1.0.10 ikon pelipat ini dipaku di ``top-24 left-6``
+ * (sudut kiri atas). Akibatnya setiap kali lipatan diterapkan ulang - dan itu
+ * terjadi tiap kali pengguna kembali dari halaman Pengaturan - ikon kamera
+ * melompat ke kiri layar. Sekarang posisinya selalu mengikuti kartunya.
+ */
+function posisiPilKamera() {
+  try {
+    const tersimpan = JSON.parse(localStorage.getItem(KUNCI_POSISI_KAMERA) || 'null')
+    if (tersimpan && Number.isFinite(tersimpan.x) && Number.isFinite(tersimpan.y)) {
+      return jepitPosisiKartu(tersimpan, LEBAR_PIL_KAMERA, TINGGI_PIL_KAMERA)
+    }
+  } catch (_) {
+    // diabaikan
+  }
+  return jepitPosisiKartu(POSISI_KARTU_BAWAAN, LEBAR_PIL_KAMERA, TINGGI_PIL_KAMERA)
+}
+
 export default function App() {
   const {
     terhubung,
@@ -153,6 +178,9 @@ export default function App() {
   const [kameraMelayang, setKameraMelayang] = useState(kameraAwal)
   // Kartu kamera sedang dibentangkan atau dilipat jadi ikon kecil.
   const [kameraTerbuka, setKameraTerbuka] = useState(kameraTerbukaAwal)
+  // Kamera benar-benar menyala (bukan sekadar kartunya dibentangkan). Dipakai
+  // pil kecil untuk menunjukkan SELA masih melihat walau kartu dilipat.
+  const [kameraSiap, setKameraSiap] = useState(false)
   // Foto yang menunggu dikirim bersama pertanyaan pengguna.
   const [lampiranFoto, setLampiranFoto] = useState(null)
   // Animasi sekali-jalan yang dipicu oleh emosi dari mesin AI.
@@ -212,6 +240,16 @@ export default function App() {
     const s = arsip.find((x) => x.id === sesiAktif)
     return s ? s.pesan : pesan
   }, [sesiAktif, arsip, pesan])
+
+  // Posisi pil kecil pengganti kartu kamera (null selagi kartu dibentangkan).
+  // Ikut dihitung ulang saat jendela berubah ukuran, supaya pil tidak pernah
+  // tertinggal di luar layar setelah jendela diperkecil.
+  const { lebar: lebarJendela, tinggi: tinggiJendela } = useUkuranJendela()
+  const posisiPil = useMemo(
+    () => (kameraTerbuka ? null : posisiPilKamera()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kameraTerbuka, lebarJendela, tinggiJendela],
+  )
 
   const sesiBaru = useCallback(() => {
     setArsip((lama) => {
@@ -373,32 +411,52 @@ export default function App() {
               onHapusLampiran={() => setLampiranFoto(null)}
             />
 
-            {/* Kamera. Saklar induk di Pengaturan menentukan apakah kamera
-                bisa diakses sama sekali; bila mati, ikon kecilnya pun tidak
-                muncul sehingga pengguna tidak punya jalan masuk. Bila aktif,
-                kartunya bisa dilipat jadi ikon kecil - sama seperti panel
-                obrolan. */}
-            {kameraMelayang &&
-              (kameraTerbuka ? (
+            {/* Kamera. Saklar induk di Pengaturan menentukan apakah kamera bisa
+                diakses sama sekali; bila mati, pil kecilnya pun tidak muncul
+                sehingga pengguna tidak punya jalan masuk.
+
+                Bila aktif, kartunya bisa DILIPAT (tombol panah) menjadi pil
+                kecil seperti panel obrolan. Yang penting: melipat hanya
+                menyembunyikan tampilan - komponen kartunya tetap terpasang,
+                sehingga getUserMedia dan bingkai hidup terus berjalan dan SELA
+                tetap bisa menjawab "saya lagi ngapain?" dari kamera. */}
+            {kameraMelayang && (
+              <>
                 <KartuKamera
                   permintaan={permintaanFoto}
                   onBingkai={tanganiBingkai}
                   onBingkaiHidup={tanganiBingkaiHidup}
                   onTutup={lipatKamera}
+                  onSiap={setKameraSiap}
+                  tersembunyi={!kameraTerbuka}
                 />
-              ) : (
-                <button
-                  type="button"
-                  onClick={bentangkanKamera}
-                  data-kamera-ikon="1"
-                  className="fixed z-40 top-24 left-6 w-11 h-11 rounded-2xl flex items-center justify-center
-                    bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl border border-white/60 dark:border-slate-700/60
-                    shadow-xl text-blue-600 dark:text-blue-400 hover:scale-105 active:scale-95 transition-all"
-                  title={t.id.cameraShow}
-                >
-                  <IconLensa />
-                </button>
-              ))}
+                {posisiPil && (
+                  <button
+                    type="button"
+                    onClick={bentangkanKamera}
+                    data-kamera-ikon="1"
+                    style={{ left: posisiPil.x, top: posisiPil.y }}
+                    className="fixed z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-2xl
+                      bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-white/60 dark:border-slate-700/60
+                      shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95
+                      text-xs font-semibold text-gray-800 dark:text-gray-100 transition-all"
+                    title={t.id.cameraShow}
+                  >
+                    <span className="p-1.5 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                      <IconLensa />
+                    </span>
+                    <span>{t.id.cameraOpen}</span>
+                    {kameraSiap && (
+                      <span
+                        data-kamera-live="1"
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"
+                        title={t.id.cameraLive}
+                      />
+                    )}
+                  </button>
+                )}
+              </>
+            )}
 
             {/* Tombol suara + status */}
             <VoiceControls

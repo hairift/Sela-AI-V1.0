@@ -85,8 +85,9 @@ export const t = {
     languageValue: 'Bahasa Indonesia',
     wakeWord: 'Kata Bangun (Wake Word)',
     wakeWordDesc: 'Asisten aktif otomatis saat mendengar kata bangun.',
-    wakeWordChoice: 'Pilihan Kata Bangun',
-    wakeWordChoiceDesc: 'Ucapkan salah satu untuk memulai tanpa menyentuh layar.',
+    wakeWordChoice: 'Kata Bangun Aktif',
+    wakeWordChoiceDesc:
+      'Semuanya langsung dikenali - ucapkan salah satu untuk memulai tanpa menyentuh layar.',
     wakeWordSensitivity: 'Sensitivitas Kata Bangun',
     wakeWordSensitivityDesc:
       'Makin kecil nilainya, makin mudah terpicu (juga makin mudah salah dengar).',
@@ -128,6 +129,32 @@ export const t = {
     logEmpty: 'Belum ada catatan.',
     logLoading: 'Memuat log...',
 
+    // Perangkat & aktivasi
+    sectionPerangkat: 'Perangkat & Aktivasi',
+    perangkatDesc:
+      'Identitas perangkat ini dipakai untuk mendaftar ke server AI. Bila server belum mengenalnya, aplikasi akan menampilkan kode aktivasi saat dibuka.',
+    perangkatSerial: 'Nomor Seri',
+    perangkatId: 'ID Perangkat',
+    perangkatStatus: 'Status Aktivasi',
+    perangkatAktif: 'Aktif',
+    perangkatBelum: 'Belum aktif',
+    perangkatVersi: 'Versi Aktivasi',
+    perangkatPeriksa: 'Periksa Ulang',
+    perangkatMemeriksa: 'Memeriksa...',
+    perangkatKonsol: 'Buka Konsol xiaozhi.me',
+    perangkatKonsolDesc:
+      'Kelola agent, ganti prompt, atau tambah perangkat di dasbor xiaozhi.me.',
+    perangkatKode: 'Kode Aktivasi',
+    perangkatKodeHint:
+      'Masukkan kode ini di dasbor xiaozhi.me untuk menghubungkan perangkat.',
+    perangkatSudahTerdaftar:
+      'Server sudah mengenal perangkat ini, jadi tidak ada kode baru yang dikirim. Ini normal - perangkat yang sudah terdaftar tidak perlu diaktifkan ulang.',
+    perangkatGagal: 'Pemeriksaan gagal dijalankan.',
+    perangkatTautanGagal: 'Tautan tidak bisa dibuka otomatis.',
+    perangkatDisalin: 'Disalin',
+    perangkatSalin: 'Salin',
+    perangkatKosong: 'Belum tersedia',
+
     // Peredam gema
     aecLabel: 'Peredam Gema (AEC)',
     aecDesc: 'Mengurangi gema pengeras suara agar mikrofon tidak terganggu.',
@@ -149,7 +176,7 @@ export const t = {
     cameraTestFail: 'Uji kamera gagal dijalankan.',
     cameraFloat: 'Kartu Kamera Melayang',
     cameraFloatDesc:
-      'Saklar induk kamera. Bila dimatikan, ikon kecil kamera pun hilang sehingga tidak ada yang bisa mengakses kamera. Bila dinyalakan, kartu kamera bisa dilipat jadi ikon kecil lewat tombol silang.',
+      'Saklar induk kamera. Bila dimatikan, ikon kecil kamera pun hilang sehingga tidak ada yang bisa mengakses kamera. Bila dinyalakan, kartu kamera bisa dilipat jadi pil kecil lewat tombol panah - kamera tetap menyala sehingga SELA masih bisa melihat.',
     cameraCard: 'Kamera',
     cameraDrag: 'Geser kartu',
     cameraTake: 'Ambil Foto',
@@ -159,9 +186,10 @@ export const t = {
     cameraFail: 'Kamera tidak bisa dibuka.',
     photoFromCamera: 'Foto dari kamera',
     photoTakenBy: 'SELA mengambil foto ini',
-    cameraShow: 'Tampilkan kamera',
-    cameraHide: 'Sembunyikan kamera',
-    cameraLive: 'SELA sedang melihat',
+    cameraOpen: 'Buka Kamera',
+    cameraShow: 'Tampilkan kartu kamera',
+    cameraHide: 'Sembunyikan kartu kamera (kamera tetap menyala)',
+    cameraLive: 'SELA sedang melihat lewat kamera',
     photoAttached: 'Foto terlampir',
     photoRemove: 'Hapus foto',
     photoAskHint: 'Tanyakan soal foto ini, misalnya "saya lagi ngapain?"',

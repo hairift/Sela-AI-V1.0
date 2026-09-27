@@ -219,6 +219,7 @@ class SelaBridge:
         self._bus.on(Events.SYSTEM_NOTICE, self._on_system_notice)
         self._bus.on(Events.PROTOCOL_CONNECTED, self._on_protocol_connected)
         self._bus.on(Events.PROTOCOL_DISCONNECTED, self._on_protocol_disconnected)
+        self._bus.on(Events.PROTOCOL_RECONNECTING, self._on_protocol_reconnecting)
 
         self._lip_task = asyncio.create_task(self._loop_lipsync(), name="sela:lipsync")
         logger.info("SelaBridge: siap (EventBus terhubung)")
@@ -457,6 +458,31 @@ class SelaBridge:
     async def _on_protocol_disconnected(self, data: Any = None) -> None:
         self._snapshot["connected"] = False
         await self.broadcast({"t": "status", "status": "Terputus", "connected": False})
+
+    async def _on_protocol_reconnecting(self, data: Any = None) -> None:
+        """Sambung-ulang otomatis sedang berjalan.
+
+        Ditampilkan apa adanya supaya pengguna tidak melihat "Terputus" yang
+        menggantung tanpa penjelasan. Bila sambung-ulang berhasil,
+        ``_on_protocol_connected`` akan menyusul dan mengembalikan status.
+        """
+        info = data if isinstance(data, dict) else {}
+        percobaan = int(info.get("attempt") or 0)
+        maks = int(info.get("max") or 0)
+        self._snapshot["connected"] = False
+        teks = (
+            f"Menyambung ulang… ({percobaan}/{maks})"
+            if percobaan and maks
+            else "Menyambung ulang…"
+        )
+        await self.broadcast(
+            {
+                "t": "status",
+                "status": teks,
+                "connected": False,
+                "reconnect": {"attempt": percobaan, "max": maks},
+            }
+        )
 
     # ------------------------------------------------------------------
     # Lipsync (dari thread audio, dikirim berkala)

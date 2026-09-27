@@ -3,11 +3,14 @@
 Yang diperiksa - semuanya butuh bukti dari DOM, bukan dugaan:
 
   1. Kartu kamera tampil dan kameranya benar-benar terbuka (video mengalir).
-  2. Tombol silang MELIPAT kartu jadi ikon kecil - bukan mematikan kamera.
-  3. Ikon kecil membentangkan kartu kembali.
-  4. Saklar induk di Pengaturan mematikan kamera SEPENUHNYA: kartu hilang DAN
-     ikon kecil pun tidak ada, jadi tidak ada jalan masuk.
-  5. Tombol "Ambil Foto" menaruh foto sebagai LAMPIRAN di kotak teks, bukan
+  2. Tombol PANAH melipat kartu jadi pil kecil - bukan mematikan kamera.
+  3. Saat terlipat: kartu masih ada di DOM tetapi tersembunyi, video masih
+     mengalir, DAN bingkai hidup masih dikirim ke mesin AI. Inilah yang membuat
+     SELA tetap bisa menjawab "saya lagi ngapain?" walau kartunya disembunyikan.
+  4. Pil kecil membentangkan kartu kembali.
+  5. Saklar induk di Pengaturan mematikan kamera SEPENUHNYA: kartu hilang DAN
+     pil kecil pun tidak ada, jadi tidak ada jalan masuk.
+  6. Tombol "Ambil Foto" menaruh foto sebagai LAMPIRAN di kotak teks, bukan
      langsung jadi gelembung percakapan.
 
 Chrome dijalankan dengan kamera palsu (``--use-fake-device-for-media-stream``)
@@ -136,7 +139,8 @@ async def jalankan(url_dasar: str) -> int:
 
             # ---- Keadaan awal: saklar induk menyala ----
             await sesi.evaluasi("localStorage.removeItem('sela_kamera_melayang');"
-                                "localStorage.removeItem('sela_kamera_terbuka'); 1")
+                                "localStorage.removeItem('sela_kamera_terbuka');"
+                                "localStorage.removeItem('sela_kamera_posisi'); 1")
             await muat_halaman(sesi, dasar)
 
             ada_kartu = await sesi.evaluasi(
@@ -156,32 +160,80 @@ async def jalankan(url_dasar: str) -> int:
                     break
             catat(lebar > 0, "Kamera benar-benar terbuka", f"videoWidth={lebar}px")
 
-            # ---- Tombol silang melipat kartu ----
+            # ---- Tombol panah melipat kartu jadi pil kecil ----
+            # Kartu TIDAK dilepas dari React (kalau dilepas, getUserMedia mati
+            # dan SELA berhenti melihat). Ia hanya disembunyikan secara visual.
             await sesi.evaluasi(
                 "document.querySelector('[data-kamera-lipat=\"1\"]').click(); 1"
             )
             await asyncio.sleep(0.6)
-            kartu_setelah = await sesi.evaluasi(
+            kartu_masih_ada = await sesi.evaluasi(
                 "!!document.querySelector('[data-kamera=\"1\"]')"
             )
-            ikon_muncul = await sesi.evaluasi(
+            kartu_tersembunyi = await sesi.evaluasi(
+                "(() => { const k = document.querySelector('[data-kamera=\"1\"]');"
+                " return k ? k.getAttribute('data-kamera-tersembunyi') : null })()"
+            )
+            pil_muncul = await sesi.evaluasi(
                 "!!document.querySelector('[data-kamera-ikon=\"1\"]')"
             )
             catat(
-                not kartu_setelah and bool(ikon_muncul),
-                "Tombol silang melipat kartu jadi ikon kecil",
-                f"kartu={bool(kartu_setelah)} ikon={bool(ikon_muncul)}",
+                bool(kartu_masih_ada) and kartu_tersembunyi == "1" and bool(pil_muncul),
+                "Tombol panah melipat kartu jadi pil kecil",
+                f"kartu={bool(kartu_masih_ada)} tersembunyi={kartu_tersembunyi} "
+                f"pil={bool(pil_muncul)}",
             )
 
-            # ---- Ikon kecil membentangkan kembali ----
+            # ---- Saat tersembunyi, video HARUS tetap mengalir ----
+            lebar_sembunyi = 0
+            for _ in range(20):
+                await asyncio.sleep(0.5)
+                lebar_sembunyi = await sesi.evaluasi(
+                    "(() => { const v = document.querySelector('[data-kamera=\"1\"] video');"
+                    " return v ? v.videoWidth : 0 })()"
+                ) or 0
+                if lebar_sembunyi:
+                    break
+            catat(
+                lebar_sembunyi > 0,
+                "Video tetap mengalir walau kartu disembunyikan",
+                f"videoWidth={lebar_sembunyi}px",
+            )
+
+            # ---- Dan bingkai hidup tetap dikirim ke mesin AI ----
+            await sesi.evaluasi(
+                "(() => { window.__bingkai = 0;"
+                " if (window.__spionBingkai) return 1;"
+                " const asli = WebSocket.prototype.send;"
+                " WebSocket.prototype.send = function (d) {"
+                "   try { if (typeof d === 'string' && d.indexOf('kamera_bingkai') >= 0)"
+                "     window.__bingkai += 1; } catch (e) {}"
+                "   return asli.apply(this, arguments); };"
+                " window.__spionBingkai = true; return 1 })()"
+            )
+            # Jeda bingkai hidup 5 detik; beri ruang 14 detik supaya kebal lambat.
+            await asyncio.sleep(14)
+            jumlah_bingkai = await sesi.evaluasi("window.__bingkai || 0") or 0
+            catat(
+                jumlah_bingkai > 0,
+                "Bingkai hidup tetap dikirim ke mesin AI saat kartu disembunyikan",
+                f"bingkai={jumlah_bingkai} dalam 14 dtk",
+            )
+
+            # ---- Pil kecil membentangkan kembali ----
             await sesi.evaluasi(
                 "document.querySelector('[data-kamera-ikon=\"1\"]').click(); 1"
             )
             await asyncio.sleep(0.6)
             kartu_kembali = await sesi.evaluasi(
-                "!!document.querySelector('[data-kamera=\"1\"]')"
+                "(() => { const k = document.querySelector('[data-kamera=\"1\"]');"
+                " if (!k) return null; return k.getAttribute('data-kamera-tersembunyi') })()"
             )
-            catat(bool(kartu_kembali), "Ikon kecil membentangkan kartu kembali")
+            catat(
+                kartu_kembali == "0",
+                "Pil kecil membentangkan kartu kembali",
+                f"tersembunyi={kartu_kembali}",
+            )
 
             # ---- Saklar induk OFF: tidak ada kartu, tidak ada ikon ----
             await sesi.evaluasi("localStorage.setItem('sela_kamera_melayang','0'); 1")
