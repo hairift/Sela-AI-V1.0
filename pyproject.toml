@@ -1,6 +1,6 @@
 [project]
 name = "sela-ai"
-version = "1.0.9"
+version = "1.0.10"
 description = "SELA AI - Asisten kampus berbasis suara (antarmuka web + mesin py-xiaozhi)"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -31,7 +31,16 @@ dependencies = [
     # AI/ML
     "openai>=1.0.0",
     "sherpa-onnx>=1.12.26",
-    "sherpa-onnx-core>=1.12.26; sys_platform != 'win32'",
+    # WAJIB di SEMUA platform, termasuk Windows.
+    # Paket sherpa-onnx hanya berisi pembungkus Python; pustaka aslinya
+    # (onnxruntime, sherpa-onnx-c-api, sherpa-onnx-cxx-api) ada di
+    # sherpa-onnx-core dan ditempatkan di sherpa_onnx/lib/. Dulu dependensi ini
+    # diberi penanda "sys_platform != 'win32'", sehingga di Windows
+    # sherpa_onnx/lib/ hanya berisi _sherpa_onnx.*.pyd tanpa satu pun DLL.
+    # Akibatnya pembuatan KeywordSpotter (wake word) menabrak memori dan
+    # aplikasi hasil paket tidak mau terbuka - tanpa pesan apa pun karena
+    # dibangun --windowed. Jangan tambahkan penanda platform lagi.
+    "sherpa-onnx-core>=1.12.26",
     # Gambar
     "opencv-python-headless>=4.9.0",
     "pillow>=10.0.0",

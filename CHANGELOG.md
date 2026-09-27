@@ -10,6 +10,68 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.10] - 2026-09-27
+
+**Aplikasi Windows akhirnya benar-benar bisa dibuka.**
+
+Rilis 1.0.9 sudah memperbaiki crash wake word di Linux, tetapi **belum
+menuntaskan Windows**. Penelusuran lanjutan menunjukkan akar masalahnya bukan
+pada PyInstaller, melainkan pada `pyproject.toml`: dependensi
+`sherpa-onnx-core` — paket yang justru **memasok** pustaka asli sherpa-onnx —
+diberi penanda `sys_platform != 'win32'`, sehingga tidak pernah dipasang di
+Windows. Penanda itu sudah ada sejak v1.0.0.
+
+Wheel `sherpa-onnx` sendiri hanya berisi pembungkus Python. Isi
+`sherpa_onnx/lib/` pada wheel Windows-nya cuma satu berkas:
+
+| Wheel | Isi `sherpa_onnx/lib/` |
+| --- | --- |
+| `sherpa_onnx-1.13.8-cp310-cp310-win_amd64.whl` | hanya `_sherpa_onnx.cp310-win_amd64.pyd` |
+| `sherpa_onnx_core-1.13.8-py3-none-win_amd64.whl` | `onnxruntime.dll`, `sherpa-onnx-c-api.dll`, `sherpa-onnx-cxx-api.dll` |
+
+Tanpa ketiga DLL itu, pembuatan `KeywordSpotter` (wake word) menabrak memori →
+segfault. Karena aplikasi dibangun `--windowed`, pengguna tidak melihat pesan
+apa pun — aplikasinya hanya tampak "tidak mau terbuka". Inilah yang terjadi
+pada SELA AI 1.0.8 yang terpasang di komputer pengguna: folder
+`sherpa_onnx/lib/` hanya berisi berkas `.pyd`.
+
+Di Linux dan macOS masalah ini tidak terasa karena penanda platform tidak
+berlaku di sana, sehingga `sherpa-onnx-core` terpasang seperti biasa.
+
+### Diperbaiki
+
+- **Windows: dependensi `sherpa-onnx-core` kini dipasang di semua platform.**
+  Penanda `sys_platform != 'win32'` dihapus. Dengan paket itu terpasang,
+  `sherpa_onnx/lib/` berisi ketiga DLL yang dibutuhkan dan hook PyInstaller
+  dapat mengemasnya.
+- **Verifikasi ulang paket Linux.** Berkas `.deb` 1.0.9 diperiksa isinya untuk
+  memastikan perbaikan wake word benar-benar ikut ke paket rilis, bukan hanya
+  ada di kode sumber. Hasilnya: `models/en/keywords.txt` berisi tepat
+  `▁SE LA @SELA`, dan `sherpa_onnx/lib/` memuat ketiga pustaka pendamping.
+
+### Ditambahkan
+
+- **Pemeriksaan di CI: build digagalkan bila pustaka pendamping tidak
+  terbundel.** `.github/workflows/build.yml` kini mencari `*onnxruntime.*`,
+  `*sherpa-onnx-c-api.*`, dan `*sherpa-onnx-cxx-api.*` di dalam `dist/` tepat
+  setelah tahap build. Sebelumnya tidak ada pemeriksaan apa pun, sehingga paket
+  Windows yang rusak bisa lolos ke halaman rilis tanpa satu pun peringatan.
+- **`tests/test_dependensi_sherpa.py`** mengunci agar penanda platform tidak
+  pernah kembali dipasang pada `sherpa-onnx-core`, dan memastikan
+  `pyinstaller_hooks/` serta `build.json` tetap saling cocok.
+- **`scripts/cek_paritas_kiblat.py`** membandingkan daftar berkas kiblat
+  `py-xiaozhi-main` dengan SELA (`src/`, `models/`, `assets/sounds/`,
+  `scripts/`) dan gagal bila ada yang hilang. Ini penjaga otomatis untuk aturan
+  tetap proyek: modifikasi SELA harus aditif.
+
+### Diubah
+
+- `.gitignore` juga mengabaikan folder sementara hasil tukar build
+  (`dist_siap/`, `build_siap/`, `dist_baru/`, `build_baru/`) dan berkas bantu
+  verifikasi.
+
+---
+
 ## [1.0.9] - 2026-09-27
 
 Rilis ini memperbaiki **dua penyebab aplikasi tidak bisa dibuka** — satu di
