@@ -10,10 +10,66 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.14] - 2026-09-28
+
+**Subtitle dihapus total, dan naskah Role Introduction xiaozhi.me kini murni
+untuk SELA - tidak lagi menyebut servo atau aturan robot.**
+
+### Tampilan
+
+- **Fitur subtitle dihapus sepenuhnya.** Subtitle yang diperkenalkan di 1.0.13
+  (`webui/src/components/SubtitleAI.jsx`) dibuang sampai bersih - berkas
+  komponen, pemasangan di `App.jsx`, kait ujinya, dan pemeriksaannya - supaya
+  tidak ada sisa kode yang bisa bermasalah di kemudian hari. Visualizer audio
+  yang mengikuti suara tetap ada dan tidak berubah.
+- Isi gelembung obrolan kini selalu berupa teks jawaban (atau kartu yang
+  menyertainya), persis seperti sebelum 1.0.13.
+
+### Dokumentasi
+
+- `docs/KONFIGURASI_XIAOZHI_ROLE.md` - kelompok **ATURAN ROBOT DAN SERVO**
+  dihapus. Pemasangan SELA di kampus ini tidak memakai servo maupun aktuator
+  robot, jadi aturan itu hanya membuang jatah token dan mengaburkan aturan yang
+  benar-benar dipakai. Naskah sekarang terdiri dari 3 kelompok yang semuanya
+  berlaku untuk SELA: sumber jawaban, transkrip suara, serta bahasa dan format.
+  Aturan yang tersisa diperkuat supaya cukup berdiri sendiri - penolakan di luar
+  topik, larangan mengarang, dan format jawaban dijelaskan lebih tegas.
+
+### Perbaikan
+
+- **Kait uji tidak lagi ikut terbit di bundel rilis.** Penjaga kait memakai
+  `import.meta.env.PROD && import.meta.env.VITE_SELA_UJI !== '1'`. Di Vite 4,
+  `PROD` memang dilipat menjadi literal, tetapi `VITE_SELA_UJI` diganti lewat
+  fallback `import.meta.env` menjadi `{}.VITE_SELA_UJI` - bentuk yang tidak bisa
+  dilipat, sehingga blok kaitnya TIDAK terbuang sebagai kode mati. Yang terbit
+  di bundel adalah `typeof window>"u"||{}.VITE_SELA_UJI==="1"&&(window.__selaUjiLip=...)`.
+  Kaitnya tidak pernah aktif (ekspresinya selalu false), jadi tidak berdampak
+  saat dipakai - tetapi namanya tetap ikut terbit, sehingga jaminan "bundel
+  rilis bersih dari kait uji" tidak benar-benar terpenuhi. Penjaga kini memakai
+  `import.meta.env.MODE`, yang diganti langsung dengan literal string oleh Vite
+  sehingga esbuild membuang blok kaitnya sepenuhnya. Bundel uji dibangun dengan
+  `--mode development`.
+
+- `scripts/cek_bundel_rilis.py` kini memeriksa **teks berkas bundel**, bukan
+  hanya `typeof` di peramban. Celah itulah yang membuat cacat di atas lolos:
+  `typeof` mengembalikan `undefined` (kait tidak aktif) padahal namanya masih
+  ada di berkas. Pemeriksa juga menegaskan visualizer tetap terpasang dan
+  penanda subtitle tidak ada.
+
+### Pengujian
+
+- `scripts/cek_visualizer_subtitle.py` menjadi
+  `scripts/cek_visualizer_audio.py`; seluruh pemeriksaan subtitle dibuang dan
+  pemeriksaan aksara Han tetap dipertahankan. Pemeriksa juga menunggu visualizer
+  benar-benar muncul di DOM, bukan memakai jendela waktu tetap - jendela tetap
+  pernah membuatnya gagal palsu pada mesin yang lambat.
+
+---
+
 ## [1.0.13] - 2026-09-28
 
-**Visualizer kini benar-benar bergerak mengikuti suara SELA, ada subtitle
-selagi ia berbicara, dan bubble obrolan merapikan sendiri daftar poin.
+**Visualizer kini benar-benar bergerak mengikuti suara SELA dan bubble obrolan
+merapikan sendiri daftar poin.**
 
 ### Tampilan
 
@@ -29,12 +85,6 @@ selagi ia berbicara, dan bubble obrolan merapikan sendiri daftar poin.
 - Batang mengempis mulus saat suara berhenti, tidak menyisakan tinggi
   terakhir, dan **tidak melewati wadahnya** - tidak ada lagi batang "lember"
   ke luar area.
-- **Subtitle saat SELA berbicara** (`webui/src/components/SubtitleAI.jsx`),
-  gaya seperti aplikasi SELA Desktop: teks tampil kata demi kata, lalu bertahan
-  sesaat setelah bicara selesai. Subtitle tidak menangkap klik
-  (`pointer-events: none`) sehingga tidak menghalangi tombol di bawahnya, dan
-  pranala panjang dibuang karena sudah disajikan sebagai kartu terpisah.
-
 ### Percakapan
 
 - **Penyusun jawaban dipisah jadi modul sendiri**
@@ -52,11 +102,11 @@ selagi ia berbicara, dan bubble obrolan merapikan sendiri daftar poin.
 
 ### Pengujian
 
-- `scripts/cek_visualizer_subtitle.py` - bukti dari DOM sungguhan lewat CDP
+- `scripts/cek_visualizer_audio.py` - bukti dari DOM sungguhan lewat CDP
   bahwa batang bergerak mengikuti volume, membedakan besar-kecilnya, tidak
-  melewati wadah, berubah warna mengikuti viseme, mengempis saat sepi, dan
-  subtitle muncul lalu hilang dengan benar. Bundel uji dibangun dengan penanda
-  `VITE_SELA_UJI=1` supaya bundel rilis tetap bersih dari kait uji.
+  melewati wadah, berubah warna mengikuti viseme, dan mengempis saat sepi.
+  Bundel uji dibangun dengan penanda `VITE_SELA_UJI=1` supaya bundel rilis
+  tetap bersih dari kait uji.
 - `webui/tests/formatJawaban.test.js` - 15 uji untuk penyusun daftar.
 
 ---

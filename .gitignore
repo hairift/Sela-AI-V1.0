@@ -18,6 +18,10 @@ webui/dist/
 # memblokir penghapusan isi dist/, jadi build diarahkan ke dist_baru dulu
 # lalu ditukar). Jangan ikut dilacak.
 webui/dist_baru/
+# Semua direktori hasil build sementara di webui (dist_rilis, dist_uji, ...).
+# Sama seperti `/dist_*` di akar: pernah terjadi direktori tukar-menukar ikut
+# ter-commit dan membawa ribuan berkas hasil build ke dalam repositori.
+webui/dist_*
 # Berkas sementara vite (berubah setiap kali build) - jangan dilacak.
 webui/vite.config.js.timestamp-*.mjs
 

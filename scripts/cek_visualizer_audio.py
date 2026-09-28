@@ -1,4 +1,4 @@
-"""Uji visualizer audio & subtitle pada antarmuka web SELA.
+"""Uji visualizer audio pada antarmuka web SELA.
 
 Kenapa berkas ini ada: visualizer di ``Avatar3D.jsx`` dulu memakai animasi CSS
 statis (``animate-wave-*``) sehingga tampak bergerak sendiri tanpa hubungan
@@ -13,9 +13,7 @@ Yang diperiksa:
 5. Batang bergerak walau state perangkat bukan 'speaking' - mesin AI mengayun
    speaking <-> idle di sela kalimat, jadi visualizer tidak boleh ikut mati.
 6. Batang mengempis kembali setelah suara hilang.
-7. Subtitle muncul selagi SELA bicara dan memuat teks jawaban.
-8. Tidak ada aksara Han yang lolos ke subtitle.
-9. Subtitle hilang setelah SELA berhenti bicara.
+7. Tidak ada aksara Han pada halaman (harus Indonesia saja).
 
 Bukti diambil dari DOM sungguhan lewat CDP, bukan dari pembacaan berkas sumber.
 """
@@ -136,12 +134,22 @@ async def jalankan(url: str) -> int:
             cdp = CDP(ws)
             await cdp.kirim("Runtime.enable")
             await cdp.kirim("Page.enable")
-            await asyncio.sleep(3.0)
+
+            # Tunggu sampai React benar-benar merender visualizer. Jendela tetap
+            # (mis. 3 detik) rapuh: pada mesin yang lambat - terutama setelah
+            # bundel di-*build* ulang sehingga cache kosong - akar React masih
+            # kosong saat diperiksa, lalu uji gagal palsu seolah visualizer
+            # tidak ada. Jadi tunggu sampai elemennya benar-benar muncul.
+            ada = False
+            for _ in range(40):
+                await asyncio.sleep(0.5)
+                ada = await cdp.evaluasi(
+                    "!!document.querySelector('[data-visualizer-audio=\"1\"]')"
+                )
+                if ada:
+                    break
 
             # --- Visualizer ---
-            ada = await cdp.evaluasi(
-                "!!document.querySelector('[data-visualizer-audio=\"1\"]')"
-            )
             print(f"[visualizer] ada di DOM = {ada}")
             if not ada:
                 galat.append("visualizer audio tidak ditemukan di DOM")
@@ -273,96 +281,15 @@ async def jalankan(url: str) -> int:
                             f"(nyaring={r_nyaring:.1f} vs sepi={rerata(sepi):.1f})"
                         )
 
-            # --- Subtitle ---
-            # Kait uji menambah pesan asisten; stateAvatar baru ikut berubah bila
-            # sebelumnya bukan 'speaking' (React tidak memicu render bila nilai
-            # state sama). Jadi kembalikan dulu ke idle, lalu suntik pesannya.
-            print("[subtitle] mengaktifkan mode bicara + teks jawaban")
-            await cdp.evaluasi(
-                "(() => { window.__selaUjiBerhenti && window.__selaUjiBerhenti(); return 1 })()"
+            # Tanpa aksara Han di mana pun pada halaman.
+            han_halaman = await cdp.evaluasi(
+                "(() => { const t = document.body.innerText || '';"
+                " return /[\\u4e00-\\u9fff\\u3400-\\u4dbf]/.test(t); })()"
             )
-            await asyncio.sleep(0.8)
-            await cdp.evaluasi(
-                "(() => { window.__selaUjiSubtitle && window.__selaUjiSubtitle("
-                "'Selamat datang di Universitas Cerdas Insan Cendekia.'); return 1 })()"
-            )
-            await asyncio.sleep(2.6)
-            ada_sub = await cdp.evaluasi(
-                "!!document.querySelector('[data-subtitle-ai=\"1\"]')"
-            )
-            teks_sub = await cdp.evaluasi(
-                "(document.querySelector('[data-subtitle-ai=\"1\"]') || {}).innerText || ''"
-            )
-            print(f"[subtitle] ada = {ada_sub} | teks = {teks_sub!r}")
-            if not ada_sub:
-                galat.append("subtitle tidak muncul saat SELA berbicara")
-            elif not teks_sub.strip():
-                galat.append("subtitle muncul tetapi kosong")
-            else:
-                if HAN.search(teks_sub):
-                    galat.append(f"subtitle memuat aksara Han: {teks_sub!r}")
-                if not (teks_sub.strip().endswith(".") or len(teks_sub) > 10):
-                    galat.append("teks subtitle tidak lengkap")
+            print(f"[halaman] ada aksara Han = {han_halaman}")
+            if han_halaman:
+                galat.append("ada aksara Han pada halaman (harus Indonesia saja)")
 
-                # Tombol potong tidak boleh terhalang subtitle.
-                terhalang = await cdp.evaluasi(
-                    "(() => { const s = document.querySelector('[data-subtitle-ai=\"1\"]');"
-                    " if (!s) return 'tidak ada subtitle';"
-                    " return getComputedStyle(s).pointerEvents; })()"
-                )
-                print(f"[subtitle] pointer-events = {terhalang}")
-                if terhalang != "none":
-                    galat.append(
-                        f"subtitle menangkap klik (pointer-events={terhalang}) - "
-                        "bisa menghalangi tombol di bawahnya"
-                    )
-
-                # Subtitle HARUS bertahan di sela kalimat. Mesin AI mengayun
-                # state speaking <-> idle; dulu subtitle ikut lenyap sesaat
-                # karena hanya bergantung pada state. Uji: matikan state lalu
-                # nyalakan suara lagi dalam jeda pendek - subtitle harus tetap ada.
-                await cdp.evaluasi(
-                    "(() => { window.__selaUjiBerhenti && window.__selaUjiBerhenti();"
-                    " return 1 })()"
-                )
-                await asyncio.sleep(0.6)
-                await cdp.evaluasi(
-                    "(() => { window.__selaUjiLip && window.__selaUjiLip(0.7, 'a'); return 1 })()"
-                )
-                await asyncio.sleep(0.4)
-                masih_jeda = await cdp.evaluasi(
-                    "!!document.querySelector('[data-subtitle-ai=\"1\"]')"
-                )
-                print(f"[subtitle] bertahan saat jeda sela kalimat = {masih_jeda}")
-                if not masih_jeda:
-                    galat.append(
-                        "subtitle hilang saat state perangkat berkedip di sela kalimat"
-                    )
-
-                await cdp.evaluasi(
-                    "(() => { window.__selaUjiLip && window.__selaUjiLip(0, 'sil'); return 1 })()"
-                )
-
-                # Tanpa aksara Han di mana pun pada halaman.
-                han_halaman = await cdp.evaluasi(
-                    "(() => { const t = document.body.innerText || '';"
-                    " return /[\\u4e00-\\u9fff\\u3400-\\u4dbf]/.test(t); })()"
-                )
-                print(f"[halaman] ada aksara Han = {han_halaman}")
-                if han_halaman:
-                    galat.append("ada aksara Han pada halaman (harus Indonesia saja)")
-
-            # Setelah berhenti bicara, subtitle harus hilang.
-            await cdp.evaluasi(
-                "(() => { window.__selaUjiBerhenti && window.__selaUjiBerhenti(); return 1 })()"
-            )
-            await asyncio.sleep(4.2)
-            masih = await cdp.evaluasi(
-                "!!document.querySelector('[data-subtitle-ai=\"1\"]')"
-            )
-            print(f"[subtitle] masih ada setelah berhenti bicara = {masih}")
-            if masih:
-                galat.append("subtitle tidak hilang setelah SELA berhenti bicara")
     finally:
         proc.terminate()
         try:
@@ -377,7 +304,7 @@ async def jalankan(url: str) -> int:
         for g in galat:
             print(f"  - {g}")
         return 1
-    print("[HASIL] LULUS - visualizer mengikuti audio & subtitle tampil benar.")
+    print("[HASIL] LULUS - visualizer mengikuti audio.")
     return 0
 
 

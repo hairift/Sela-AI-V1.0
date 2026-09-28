@@ -1,8 +1,16 @@
-"""Periksa bundel rilis: kait uji harus mati, fitur tetap ada.
+"""Periksa bundel rilis: kait uji harus benar-benar tidak ikut terbit.
 
-Dijalankan terhadap bundel produksi (tanpa VITE_SELA_UJI) untuk memastikan
-kait uji yang dipakai scripts/cek_visualizer_subtitle.py TIDAK ikut terbit,
-sementara visualizer audio dan subtitle tetap terpasang.
+Dijalankan terhadap bundel produksi untuk memastikan kait uji yang dipakai
+scripts/cek_visualizer_audio.py TIDAK ikut terbit, visualizer audio tetap
+terpasang, dan subtitle (yang sudah dihapus) benar-benar tidak ada.
+
+Pemeriksaan dilakukan DUA lapis: (1) runtime lewat `typeof`, dan (2) membaca
+teks berkas bundel. Lapis kedua sengaja ada karena lapis pertama saja pernah
+meloloskan cacat nyata - penjaga kait tidak terbuang oleh Vite 4, sehingga
+nama kait ikut terbit walau ekspresinya selalu false.
+
+Pakai:
+    python scripts/cek_bundel_rilis.py <url-preview> [direktori-bundel]
 """
 
 import asyncio
@@ -77,7 +85,7 @@ class C:
         return d.get("result", {}).get("value")
 
 
-async def main(url):
+async def main(url, bundel):
     ch = cari()
     port = pb()
     prof = tempfile.mkdtemp(prefix="sela-rilis-")
@@ -108,7 +116,6 @@ async def main(url):
                 n: await c.e(f"typeof window.{n}")
                 for n in (
                     "__selaUjiLip",
-                    "__selaUjiSubtitle",
                     "__selaUjiBerhenti",
                     "__selaUjiMulaiBicara",
                 )
@@ -118,6 +125,37 @@ async def main(url):
                 if t != "undefined":
                     galat.append(f"kait uji {n} ikut terbit ({t}) - bundel kotor")
 
+            # Nama kait juga diperiksa LANGSUNG DI SUMBER bundel, bukan hanya
+            # lewat `typeof`. Pemeriksaan `typeof` saja pernah meloloskan cacat
+            # nyata: penjaga `import.meta.env.PROD && import.meta.env.VITE_SELA_UJI
+            # !== '1'` tidak terlipat oleh Vite 4 (VITE_SELA_UJI diganti lewat
+            # fallback `{}.VITE_SELA_UJI` yang tak bisa dilipat esbuild), sehingga
+            # nama kaitnya ikut terbit - walau ekspresinya selalu false dan
+            # kaitnya tidak pernah aktif. Cacat seperti itu hanya ketahuan bila
+            # teks bundelnya diperiksa.
+            for berkas in sorted((pathlib.Path(bundel) / "assets").glob("*.js")):
+                isi = berkas.read_text(encoding="utf-8", errors="replace")
+                for n in (
+                    "__selaUjiLip",
+                    "__selaUjiBerhenti",
+                    "__selaUjiMulaiBicara",
+                ):
+                    if n in isi:
+                        galat.append(
+                            f"nama kait uji {n} masih ada di {berkas.name} - "
+                            "blok kait tidak terbuang sebagai kode mati"
+                        )
+                if "data-subtitle-ai" in isi:
+                    galat.append(
+                        f"penanda subtitle masih ada di {berkas.name} - "
+                        "subtitle seharusnya sudah dihapus total"
+                    )
+                if "data-visualizer-audio" not in isi:
+                    galat.append(
+                        f"visualizer audio tidak ada di {berkas.name} - fitur hilang"
+                    )
+            print("pemeriksaan sumber bundel selesai")
+
             viz = await c.e(
                 "!!document.querySelector('[data-visualizer-audio=\"1\"]')"
             )
@@ -126,7 +164,9 @@ async def main(url):
                 galat.append("visualizer tidak ada di bundel rilis")
 
             sub = await c.e("!!document.querySelector('[data-subtitle-ai=\"1\"]')")
-            print("subtitle (idle, harus tidak tampil):", sub)
+            print("subtitle (sudah dihapus, harus false):", sub)
+            if sub:
+                galat.append("subtitle masih terpasang padahal sudah dihapus")
 
             han = await c.e(
                 "(() => /[\\u4e00-\\u9fff\\u3400-\\u4dbf]/.test(document.body.innerText||''))()"
@@ -152,4 +192,4 @@ async def main(url):
     return 0
 
 
-asyncio.run(main(sys.argv[1]))
+asyncio.run(main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "dist"))

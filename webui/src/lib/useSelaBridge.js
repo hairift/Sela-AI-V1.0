@@ -311,36 +311,29 @@ export default function useSelaBridge() {
     menungguJawaban && stateAvatar !== 'speaking' ? 'thinking' : stateAvatar
 
   // Kait uji: menyuntikkan data lipsync tiruan supaya pemeriksa antarmuka
-  // (scripts/cek_visualizer_subtitle.py) bisa membuktikan batang visualizer
+  // (scripts/cek_visualizer_audio.py) bisa membuktikan batang visualizer
   // benar-benar mengikuti volume audio, tanpa perlu menjalankan mesin AI.
   // Hanya diaktifkan di pengembangan agar tidak menjadi permukaan tambahan
   // pada aplikasi terpaket.
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
-    // Kait uji hanya untuk pengembangan, KECUALI build penanda VITE_SELA_UJI=1
-    // yang dipakai scripts/cek_visualizer_subtitle.py untuk memeriksa bundel
-    // produksi sungguhan.
+    // Kait uji hanya hidup di bundel pengembangan. Bundel rilis dibangun
+    // dengan mode produksi, bundel uji dengan mode pengembangan
+    // (scripts/cek_visualizer_audio.py).
     //
-    // Ditulis sebagai akses properti langsung (bukan destructuring) supaya
-    // Vite bisa menggantinya dengan nilai literal saat build, lalu esbuild
-    // membuang seluruh blok di bawah sebagai kode mati. Dengan begitu bundel
-    // rilis benar-benar tidak memuat kait uji - bukan sekadar tidak aktif.
-    if (import.meta.env.PROD && import.meta.env.VITE_SELA_UJI !== '1') {
+    // MODE sengaja dipakai, bukan VITE_SELA_UJI: di Vite 4 `import.meta.env.MODE`
+    // diganti langsung dengan literal string, sehingga esbuild melipat seluruh
+    // ekspresi dan MEMBUANG blok di bawah sebagai kode mati. Variabel lain
+    // (termasuk VITE_SELA_UJI) hanya diganti lewat fallback `import.meta.env`
+    // menjadi `{}.VITE_SELA_UJI`, yang tidak bisa dilipat - namanya ikut
+    // terbit di bundel rilis walau kaitnya tidak pernah aktif.
+    if (import.meta.env.MODE !== 'development') {
       return undefined
     }
     // Suntikan volume saja. Sengaja TIDAK mengubah stateAvatar: visualizer
     // sekarang digerakkan oleh energi audio nyata, jadi uji ini sekaligus
     // membuktikan batang bergerak walau perangkat sedang 'idle'.
     window.__selaUjiLip = (v, viseme) => setLip({ v: Number(v) || 0, viseme: viseme || 'sil' })
-    window.__selaUjiSubtitle = (teks) => {
-      // tambahPesan menerima (peran, teks, opsi) - bukan satu objek.
-      tambahPesan('assistant', String(teks || ''))
-      setStateAvatar('speaking')
-    }
-    // Kembali ke 'idle' SEKALIGUS mengosongkan volume. Kait lain
-    // (__selaUjiSubtitle) hanya mengubah stateAvatar bila nilainya berubah,
-    // jadi urutan idle -> subtitle penting agar uji tidak bergantung pada
-    // state sebelumnya.
     window.__selaUjiBerhenti = () => {
       setLip({ v: 0, viseme: 'sil' })
       setStateAvatar('idle')
