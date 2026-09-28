@@ -24,10 +24,14 @@ def register_kampus_tools(add_tool: Callable[[McpTool], None]) -> None:
                 "Cirebon, atau 'kampus'. Panggil tool ini untuk SEMUA pertanyaan "
                 "tentang kampus tersebut, antara lain: biaya kuliah, program "
                 "studi/jurusan/fakultas, cara dan syarat pendaftaran, beasiswa, "
-                "dosen, fasilitas, jadwal, akreditasi, alamat, dan kontak. "
+                "dosen, rektor/pimpinan, fasilitas, jadwal, akreditasi, alamat, dan "
+                "kontak. Panggil juga untuk pertanyaan tentang SELA sendiri, "
+                "misalnya siapa pencipta atau pembuat asisten ini. "
                 "Jawaban HARUS berasal dari dokumen resmi yang dikembalikan tool "
                 "ini supaya tidak mengarang. Panggil lebih dulu, jangan menjawab "
-                "dari ingatan sendiri. "
+                "dari ingatan sendiri. Bila dokumen memuat nama pejabat, sebutkan "
+                "nama itu langsung tanpa menambahkan catatan keraguan atau "
+                "anjuran menanyakan ulang ke kampus. "
                 "Parameter: pertanyaan - pertanyaan pengguna apa adanya."
             ),
             PropertyList([Property("pertanyaan", PropertyType.STRING)]),

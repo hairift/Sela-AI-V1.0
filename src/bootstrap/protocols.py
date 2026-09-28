@@ -118,9 +118,13 @@ class PluginCommands(Protocol):
         """
         ...
 
-    async def connect_protocol(self) -> bool:
+    async def connect_protocol(self, keep_idle: bool = False) -> bool:
         """
         连接协议通道.
+
+        ``keep_idle`` 为真时不自动进入 LISTENING（见
+        ``ConversationSession.connect_protocol``）：用于应用启动时的
+        「只连不监听」。
         """
         ...
 

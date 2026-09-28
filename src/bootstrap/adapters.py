@@ -80,8 +80,8 @@ class PluginCommandsAdapter:
     async def send_mcp_message(self, payload: str) -> None:
         await self._container.protocol.send_mcp_message(payload)
 
-    async def connect_protocol(self) -> bool:
-        return await self._container.session.connect_protocol()
+    async def connect_protocol(self, keep_idle: bool = False) -> bool:
+        return await self._container.session.connect_protocol(keep_idle=keep_idle)
 
     def spawn(self, coro: Awaitable[Any], name: str) -> Any:
         return self._container.tasks.spawn(coro, name)

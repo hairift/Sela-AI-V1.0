@@ -997,7 +997,7 @@ async def test_auto_session_button_start_stop():
     starts = []
 
     class _Cmd:
-        async def connect_protocol(self):
+        async def connect_protocol(self, keep_idle=False):
             return True
 
         async def start_listening(self, mode):
@@ -1020,6 +1020,9 @@ async def test_auto_session_button_start_stop():
             return speaking["v"]
 
         def is_listening(self):
+            return listening["v"]
+
+        def should_capture_audio(self):
             return listening["v"]
 
         def get_config(self):
@@ -1055,7 +1058,7 @@ async def test_send_text_from_idle_starts_listen_then_detect():
     listening = {"v": False}
 
     class _Cmd:
-        async def connect_protocol(self):
+        async def connect_protocol(self, keep_idle=False):
             order.append("connect")
             return True
 
@@ -1076,6 +1079,9 @@ async def test_send_text_from_idle_starts_listen_then_detect():
         def is_listening(self):
             return listening["v"]
 
+        def should_capture_audio(self):
+            return listening["v"]
+
         def get_config(self):
             class C:
                 def get_config(self, k, d=None):
@@ -1090,10 +1096,24 @@ async def test_send_text_from_idle_starts_listen_then_detect():
     assert order[1] == ("listen", ListeningMode.MANUAL)
     assert order[2] == ("detect", "播放歌曲")
 
-    # 已在 listening 时不再重复 start
+    # 已在 listening 且确实在采集音频时，不再重复 start
     order.clear()
     await session.send_text("你好")
     assert order == [("detect", "你好")]
+
+    # 状态显示 listening 但采集没有真正跑起来（bawaan kiblat menaikkan
+    # status ini begitu kanal audio terbuka）→ sesi harus dibuka ulang,
+    # kalau tidak ``detect`` dikirim tanpa sesi dan jawaban tidak pernah datang.
+    order.clear()
+    listening["v"] = False
+    session2 = SessionActions(_Ctx(), _Cmd(), UiPresenter(_FakeViewport()))
+    session2._ctx.is_listening = lambda: True  # type: ignore[method-assign]
+    listening["v"] = True
+    session2._ctx.should_capture_audio = lambda: False  # type: ignore[method-assign]
+    await session2.send_text("halo")
+    assert order[0] == "connect"
+    assert ("listen", ListeningMode.MANUAL) in order
+    assert order[-1] == ("detect", "halo")
 
 
 @pytest.mark.asyncio

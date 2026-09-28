@@ -80,6 +80,13 @@ export default function useSelaBridge() {
   // Dipakai untuk menampilkan animasi "Thinking" selagi mesin AI mencari
   // jawaban (termasuk saat memanggil tool data kampus / pencarian web).
   const [menungguJawaban, setMenungguJawaban] = useState(false)
+  // Benar HANYA setelah pengguna menekan tombol mikrofon untuk mulai merekam.
+  //
+  // Status "listening" dari mesin AI tidak bisa dipakai sendirian: protokol
+  // menaikkan status ke LISTENING begitu kanal audio terbuka (termasuk saat
+  // aplikasi baru dibuka), sehingga tombol mikrofon tampak merekam padahal
+  // belum ada yang menekannya. Nilai ini mengunci tampilan pada niat pengguna.
+  const [merekam, setMerekam] = useState(false)
 
   const bridgeRef = useRef(null)
   const timerMenunggu = useRef(null)
@@ -271,6 +278,10 @@ export default function useSelaBridge() {
         // Saat menghentikan rekaman, pertanyaan ikut terkirim -> mulai menunggu.
         if (merekamRef.current) tandaiMenunggu()
         merekamRef.current = !merekamRef.current
+        // Rekaman hanya boleh terlihat "hidup" setelah pengguna benar-benar
+        // menekan tombol. Tanpa ini, status LISTENING yang datang dari mesin AI
+        // (mis. sisa sambungan awal) membuat tombol tampak merekam sendiri.
+        setMerekam(merekamRef.current)
         bridgeRef.current?.manualToggle()
       },
       mulaiOtomatis: () => bridgeRef.current?.autoStart(),
@@ -307,8 +318,15 @@ export default function useSelaBridge() {
   // bicara, mesin AI mengembalikan state ke "listening" selagi memproses
   // jawaban - bila listening dikecualikan, animasi Thinking tidak akan
   // pernah tampil pada momen paling penting itu.
-  const stateTampil =
+  //
+  // Namun "listening" dari mesin AI hanya ditampilkan bila pengguna memang
+  // sedang merekam. Protokol menaikkan status ke LISTENING begitu kanal audio
+  // terbuka - termasuk saat aplikasi baru dibuka atau halaman disegarkan -
+  // sehingga tanpa penjaga ini tombol mikrofon tampak merekam sendiri.
+  const stateTampilMentah =
     menungguJawaban && stateAvatar !== 'speaking' ? 'thinking' : stateAvatar
+  const stateTampil =
+    stateTampilMentah === 'listening' && !merekam ? 'idle' : stateTampilMentah
 
   // Kait uji: menyuntikkan data lipsync tiruan supaya pemeriksa antarmuka
   // (scripts/cek_visualizer_audio.py) bisa membuktikan batang visualizer
@@ -350,6 +368,7 @@ export default function useSelaBridge() {
     statusTeks,
     emosi,
     stateAvatar: stateTampil,
+    merekam,
     modeOtomatis,
     teksTombol,
     pesan,

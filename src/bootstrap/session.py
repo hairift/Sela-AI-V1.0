@@ -157,13 +157,43 @@ class ConversationSession:
     # -------------------------
     # 操作方法
     # -------------------------
-    async def connect_protocol(self) -> bool:
+    async def connect_protocol(self, keep_idle: bool = False) -> bool:
+        """Sambungkan protokol. Bila ``keep_idle`` benar, JANGAN masuk LISTENING.
+
+        Bawaan kiblat: begitu kanal audio terbuka, sesi naik ke LISTENING
+        supaya mikrofon langsung siap (dipakai mode gui/cli/gpio, yang
+        mengandalkan tombol fisik atau pintasan papan tik). Antarmuka web
+        TIDAK boleh berperilaku begitu: ia menyambung lebih dulu saat aplikasi
+        dibuka hanya agar indikator status hijau. Bila sambungan itu sekaligus
+        membuka sesi dengar, pengguna melihat tombol mikrofon sudah "merekam"
+        padahal belum menekan apa pun - dan klik pertamanya justru menutup
+        sesi hantu itu, sehingga hasil suaranya tidak pernah terkirim.
+
+        ``keep_idle`` hanya berlaku untuk sambungan BARU. Bila kanal sudah
+        terbuka karena pengguna benar-benar menekan mikrofon, keadaannya tidak
+        diubah.
+        """
         if self.protocol.is_audio_channel_opened():
             return True
 
-        opened = await self.protocol.connect()
+        if keep_idle:
+            # Dipakai _on_audio_channel_opened saat kanal benar-benar terbuka.
+            self._keep_idle_on_channel_open = True
+
+        try:
+            opened = await self.protocol.connect()
+        except Exception:
+            # Jangan biarkan penanda menggantung bila sambungan gagal - kalau
+            # tidak, percobaan berikutnya (yang justru ingin menyambung sambil
+            # mendengar) ikut terpaksa IDLE.
+            if keep_idle:
+                self._keep_idle_on_channel_open = False
+            raise
+
         if opened:
             await self.plugins.notify_protocol_connected(self.protocol.protocol)
+        elif keep_idle:
+            self._keep_idle_on_channel_open = False
         return opened
 
     async def _on_protocol_reconnect_request(self, _=None) -> None:

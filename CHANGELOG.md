@@ -10,6 +10,106 @@ Catatan rilis di GitHub diambil dari bagian versi yang sesuai di berkas ini
 
 ---
 
+## [1.0.15] - 2026-09-28
+
+**Mikrofon tidak lagi merekam sendiri saat aplikasi dibuka atau halaman
+disegarkan, jawaban rektor tidak lagi diragukan, dan pencipta SELA kini
+tercatat.**
+
+### Perbaikan
+
+- **Mikrofon tidak lagi dalam keadaan merekam saat aplikasi baru dibuka atau
+  halaman disegarkan.** Sebelumnya, begitu aplikasi dijalankan - atau halaman
+  dimuat ulang dengan Ctrl+Shift+S - tombol mikrofon sudah berwarna merah
+  berdenyut dengan label "Sedang mendengarkan...", padahal pengguna belum
+  menekan apa pun. Penyebabnya ada di sisi mesin AI: protokol menaikkan status
+  ke `LISTENING` setiap kali kanal audio terbuka
+  (`ConversationSession._on_audio_channel_opened`), dan antarmuka web
+  menyambung lebih dulu saat aplikasi dibuka agar indikator statusnya hijau.
+  Akibat berantainya lebih mengganggu daripada tampilannya: klik mikrofon
+  pertama pengguna justru menutup sesi dengar hantu itu, sehingga tidak ada
+  audio yang terekam dan **jawaban atas ucapan pengguna tidak pernah muncul** -
+  sedangkan menekan tombol untuk kedua kalinya tampak berhasil.
+
+  Perbaikannya bertiga arah:
+  - `connect_protocol(keep_idle=True)` baru di `ConversationSession` -
+    menyambung tanpa menaikkan status ke `LISTENING`. Dipakai oleh
+    `auto_connect` (sambungan awal) dan `siap_siaga` (dipanggil setiap pindah
+    halaman, termasuk saat halaman pertama dimuat).
+  - `siap_siaga` tidak lagi memanggil `_ensure_listen_session()`. Dulu ia
+    "memastikan sesi dengar aktif", sehingga sekadar berpindah halaman sudah
+    menyalakan rekaman.
+  - `manual_toggle` - yaitu tombol mikrofon - kini satu-satunya jalur yang
+    membuka mikrofon. Klik pertama selalu membuat sesi rekam **baru dan
+    bersih**, klik kedua selalu menutupnya supaya hasil suaranya dikirim.
+    Bila pengguna menekan tombol selagi SELA bicara, suara SELA dihentikan
+    lebih dulu, dan klik itu tidak dihitung sebagai mulai merekam.
+
+  Antarmuka juga tidak lagi mempercayai status `listening` dari mesin AI
+  sendirian: rekaman ditandai hanya setelah pengguna benar-benar menekan
+  tombol, sehingga status hantu apa pun tidak bisa lagi membuat tombol tampak
+  merekam.
+- **Sesi dengar yang basi tidak lagi dipercaya saat mengirim teks.**
+  `_ensure_listen_session()` dulu berhenti pada pemeriksaan status `listening`.
+  Karena protokol menaikkan status itu begitu kanal audio terbuka, pertanyaan
+  teks bisa dikirim tanpa sesi dengar yang benar-benar hidup - dan jawabannya
+  tidak pernah datang. Sekarang sesi dibuka ulang bila perekaman belum
+  benar-benar berjalan.
+
+### Data kampus
+
+- **Jawaban tentang rektor tidak lagi diragukan.** Pertanyaan "Siapa Rektor
+  Universitas Katur Insan Candikia?" (nama kampus salah ketik) sebelumnya
+  dijawab dari dokumen **Pedoman Akademik 2020** yang di dalamnya tertulis
+  "*Posisi pimpinan terbaru perlu dikonfirmasi ke kampus*", lalu model
+  menambahkan sanggahannya sendiri: "*Tapi data itu dari tahun 2020, jadi
+  jabatan rektor terbaru sebaiknya dikonfirmasi langsung ke kampus.*"
+  Sekarang dokumen `rektor` diberi kata kunci yang lebih tegas - termasuk nama
+  lengkap universitas dan ragam cara bertanya - sehingga pertanyaan rektor
+  selalu jatuh ke dokumen itu (skor 43,4 berbanding 20,4 untuk dokumen 2020).
+  Kalimat "perlu dikonfirmasi" juga dihapus dari seluruh dokumen yang membahas
+  pimpinan. Rektor UCIC adalah **Assoc. Prof. Dr. Chandra Lukita, S.E., M.M.,
+  M.T.I.**, dan itu disebutkan langsung tanpa catatan ragu.
+- **Pencipta SELA kini tercatat.** Dokumen `tentang_sela` baru memuat bahwa
+  SELA dibuat oleh **mahasiswa jenius bernama Muhammad Arif Triyana**,
+  sehingga pertanyaan "siapa yang membuat kamu" atau "siapa penciptamu"
+  dijawab dengan benar.
+- Deskripsi tool `cari_info_kampus` diperluas: menyebut rektor/pimpinan dan
+  pertanyaan tentang SELA sendiri, serta meminta nama pejabat disebutkan
+  langsung tanpa anjuran menanyakan ulang ke kampus.
+
+### Dokumentasi
+
+- `docs/KONFIGURASI_XIAOZHI_ROLE.md` - dua aturan baru yang tegas: **aturan 7**
+  (rektor disebut langsung dan pasti, tanpa catatan tahun atau anjuran
+  konfirmasi) dan **aturan 8** (pencipta SELA adalah mahasiswa jenius bernama
+  Muhammad Arif Triyana). Tabel pengujian di dokumen ikut memuat kedua
+  pertanyaan itu.
+
+### Pengujian
+
+- Dua berkas uji baru yang mengunci perbaikan ini:
+  - `tests/test_sesi_dengar.py` (14 uji) - sambungan awal dan siap-siaga tidak
+    boleh membuka mikrofon; klik pertama selalu membuka sesi rekam baru; klik
+    saat SELA bicara hanya menghentikan suara; status `LISTENING` semu tidak
+    dipercaya saat mengirim teks; `keep_idle` dibersihkan bila sambungan gagal
+    supaya pemulihannya tidak ikut lumpuh.
+  - `tests/test_jawaban_rektor.py` (14 uji) - pertanyaan rektor selalu jatuh ke
+    dokumen `rektor`, dokumen 2020 tidak boleh mengalahkannya, dan tidak ada
+    dokumen pimpinan yang menyuruh pengguna memastikan ulang ke kampus.
+- `scripts/cek_mikrofon_awal.py` baru - memeriksa DOM sungguhan lewat CDP bahwa
+  tombol mikrofon tenang saat halaman dibuka, merekam setelah klik sungguhan
+  pertama (`Input.dispatchMouseEvent`, bukan `element.click()`), dan berhenti
+  setelah klik kedua.
+
+### Diperbaiki dari
+
+- Kait uji `should_capture_audio` pada tiruan `PluginContext` di
+  `tests/test_resilience_fixes.py`, mengikuti antarmuka `connect_protocol`
+  yang kini menerima `keep_idle`.
+
+---
+
 ## [1.0.14] - 2026-09-28
 
 **Subtitle dihapus total, dan naskah Role Introduction xiaozhi.me kini murni

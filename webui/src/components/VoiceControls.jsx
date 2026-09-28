@@ -29,16 +29,18 @@ const IconSpinner = () => (
 
 export default function VoiceControls({
   stateAvatar = 'idle',
+  merekam = false,
   onRekam,
   terhubung = false,
   aiTerhubung = false,
-  teksTombol = '',
   terbuka = true,
 }) {
-  // Python mengirim teks tombol "Kirim" saat mikrofon sedang merekam,
-  // dan "Tahan lalu bicara" saat tidak. Dipakai untuk memberi umpan balik
-  // yang jelas supaya pengguna tahu klik kedua berarti mengirim.
-  const sedangMerekam = stateAvatar === 'listening' || /^kirim$/i.test(teksTombol.trim())
+  // Sumber kebenaran rekaman adalah ``merekam``: benar hanya setelah pengguna
+  // menekan tombol mikrofon. Status "listening" dari mesin AI TIDAK dipakai
+  // sendirian - protokol menaikkan status ke LISTENING begitu kanal audio
+  // terbuka (termasuk saat aplikasi baru dibuka), sehingga tombol akan tampak
+  // merekam sendiri tanpa ada yang menekannya.
+  const sedangMerekam = merekam && stateAvatar !== 'speaking'
 
   const label = () => {
     if (!terhubung) return t.id.appOffline

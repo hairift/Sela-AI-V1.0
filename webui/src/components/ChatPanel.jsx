@@ -61,6 +61,7 @@ export default function ChatPanel({
   onTutup,
   terbuka = true,
   stateAvatar = 'idle',
+  merekam = false,
   terhubung = false,
   volume = 0,
   langkahAlat = [],
@@ -175,7 +176,10 @@ export default function ChatPanel({
 
   const geserChip = (arah) => chipRef.current?.scrollBy({ left: arah * 160, behavior: 'smooth' })
 
-  const sedangMendengar = stateAvatar === 'listening'
+  // Sama seperti tombol mikrofon: rekaman ditandai oleh ``merekam`` (niat
+  // pengguna), bukan oleh status LISTENING dari mesin AI - status itu juga
+  // muncul saat aplikasi baru dibuka, sebelum ada yang menekan tombol.
+  const sedangMendengar = merekam && stateAvatar !== 'speaking'
   const sisa = MAKS_PANJANG_TEKS - nilai.length
   const hampirPenuh = sisa <= 4
   const sedangBekerja = langkahAlat.length > 0

@@ -158,8 +158,8 @@ export default function App() {
     terhubung,
     aiTerhubung,
     stateAvatar,
+    merekam,
     emosi,
-    teksTombol,
     pesan,
     lip,
     langkahAlat,
@@ -299,11 +299,18 @@ export default function App() {
     [],
   )
 
-  // Setiap kali pengguna berpindah halaman, pastikan sambungan dan sesi
-  // dengar siap. Sebelumnya keluar dari Pengaturan kadang meninggalkan
-  // sambungan setengah siap sehingga SELA diam sampai aplikasi dijalankan
-  // ulang. Sekaligus membaca ulang setelan kartu kamera, karena halaman
-  // Pengaturan menulisnya ke penyimpanan peramban.
+  // Setiap kali pengguna berpindah halaman, pastikan SAMBUNGAN siap.
+  // Sebelumnya keluar dari Pengaturan kadang meninggalkan sambungan setengah
+  // siap sehingga SELA diam sampai aplikasi dijalankan ulang.
+  //
+  // Sejak v1.0.15 aksi ini TIDAK membuka mikrofon lagi. Dulu ia sekaligus
+  // memastikan "sesi dengar aktif", sehingga sekadar membuka atau menyegarkan
+  // halaman sudah menyalakan rekaman - tombol mikrofon tampak merekam padahal
+  // pengguna belum menekannya. Mikrofon sekarang hanya dibuka oleh tombol
+  // mikrofon itu sendiri.
+  //
+  // Sekaligus membaca ulang setelan kartu kamera, karena halaman Pengaturan
+  // menulisnya ke penyimpanan peramban.
   useEffect(() => {
     setKameraMelayang(kameraAwal())
     setKameraTerbuka(kameraTerbukaAwal())
@@ -404,6 +411,7 @@ export default function App() {
               onTutup={(tutup) => setPanelTerbuka(!tutup)}
               terbuka={panelTerbuka}
               stateAvatar={stateAvatar}
+              merekam={merekam}
               terhubung={terhubung}
               volume={lip?.v || 0}
               langkahAlat={langkahAlat}
@@ -461,10 +469,10 @@ export default function App() {
             {/* Tombol suara + status */}
             <VoiceControls
               stateAvatar={stateAvatar}
+              merekam={merekam}
               onRekam={aksi.rekamToggle}
               terhubung={terhubung}
               aiTerhubung={aiTerhubung}
-              teksTombol={teksTombol}
               terbuka={panelTerbuka}
             />
           </main>

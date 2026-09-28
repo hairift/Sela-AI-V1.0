@@ -56,19 +56,26 @@ class SessionActions:
         logger.info("SessionActions 已订阅 UI 用户操作事件")
 
     async def auto_connect(self, _data=None) -> None:
-        """Sambungkan protokol tanpa membuka mikrofon.
+        """Sambungkan protokol TANPA membuka mikrofon.
 
         Dipakai antarmuka web saat aplikasi dibuka, supaya indikator status
         langsung menunjukkan "Terhubung" dan obrolan teks siap dipakai. Mikrofon
         tetap baru dibuka ketika pengguna menekan tombol atau memanggil kata
         bangun, sehingga perilaku asli py-xiaozhi tidak berubah.
+
+        ``connect_protocol(keep_idle=True)`` penting di sini. Bawaan kiblat
+        menaikkan sesi ke LISTENING begitu kanal audio terbuka; bila itu
+        dibiarkan, aplikasi yang baru dibuka (atau halaman yang baru disegarkan)
+        langsung tampak sedang merekam padahal pengguna belum menekan apa pun -
+        dan klik mikrofon pertamanya justru menutup sesi hantu itu sehingga
+        hasil suaranya tidak pernah terkirim.
         """
         try:
             if self._ctx.is_listening() or self._ctx.is_speaking():
                 return
-            ok = await self._cmd.connect_protocol()
+            ok = await self._cmd.connect_protocol(keep_idle=True)
             if ok:
-                logger.info("Sambungan awal ke mesin AI berhasil")
+                logger.info("Sambungan awal ke mesin AI berhasil (mikrofon tetap tertutup)")
             else:
                 logger.warning(
                     "Sambungan awal ke mesin AI belum berhasil; "
@@ -102,10 +109,20 @@ class SessionActions:
         return ListeningMode.REALTIME if aec else ListeningMode.AUTO_STOP
 
     async def _ensure_listen_session(self) -> bool:
-        # 空闲时直接 detect，服务端常会丢；先听再发
-        if self._ctx.is_listening() or self._ctx.is_speaking():
+        """Pastikan ada sesi dengar yang benar-benar hidup sebelum kirim teks.
+
+        Server sering membuang ``detect`` yang dikirim selagi idle, jadi sesi
+        dengar dibuka lebih dulu ("先听再发"). Yang perlu dijaga: status
+        LISTENING saja BUKAN bukti sesi itu ada. Bawaan kiblat menaikkan status
+        ke LISTENING setiap kanal audio dibuka (``_on_audio_channel_opened``),
+        termasuk saat aplikasi web baru dibuka dan belum ada sesi dengar sama
+        sekali. Bila keadaan semu itu dipercaya, ``detect`` dikirim tanpa sesi
+        dan jawabannya tidak pernah datang. Karena itu sesi selalu dibuka ulang
+        bila perekaman belum benar-benar berjalan.
+        """
+        if self._ctx.is_listening() and self._ctx.should_capture_audio():
             return True
-        if not await self._cmd.connect_protocol():
+        if not await self._cmd.connect_protocol(keep_idle=True):
             logger.warning("无法建立协议连接，取消会话操作")
             return False
         mode = self._listen_mode()
@@ -155,16 +172,40 @@ class SessionActions:
         await self._cmd.stop_listening()
 
     async def manual_toggle(self, _data=None) -> None:
+        """Tombol mikrofon utama: klik pertama mulai merekam, klik kedua kirim.
+
+        Ini SATU-SATUNYA jalur yang boleh membuka mikrofon di antarmuka web.
+        Sebelumnya aplikasi bisa sudah berada di LISTENING saat halaman dibuka
+        (lihat ``auto_connect``), sehingga klik pertama pengguna malah menutup
+        sesi hantu itu dan suaranya tidak pernah terkirim - gejalanya: "sudah
+        bicara, tapi tidak ada hasil". Sekarang setiap klik pertama selalu
+        membuka sesi rekam yang BARU dan bersih, jadi hasilnya selalu terkirim.
+        """
+        if self._ctx.is_speaking():
+            # Selagi SELA bicara, klik mikrofon berarti menghentikannya dulu
+            # supaya pengguna tidak berbicara di atas suara SELA.
+            await self._cmd.abort_speaking(AbortReason.USER_INTERRUPTION)
+            self._manual_recording = False
+            self._ui.set_button_text("Tahan lalu bicara")
+            return
+
         if not self._manual_recording:
             self._manual_recording = True
             logger.debug("手动模式：开始录音")
             self._ui.set_button_text("Kirim")
-            await self._cmd.connect_protocol()
+            if not await self._cmd.connect_protocol(keep_idle=True):
+                self._manual_recording = False
+                self._ui.set_button_text("Tahan lalu bicara")
+                logger.warning("Mikrofon tidak bisa dibuka: sambungan gagal")
+                return
             await self._cmd.start_listening(ListeningMode.MANUAL)
         else:
             self._manual_recording = False
             logger.debug("手动模式：停止录音并发送")
             self._ui.set_button_text("Tahan lalu bicara")
+            # Selalu tutup sesi rekam. Bila sesi itu ternyata sudah tidak ada
+            # (mis. server memutusnya sendiri), perintah ini tidak berbahaya -
+            # dan yang penting jawaban atas rekaman tadi tetap dihasilkan.
             await self._cmd.stop_listening()
 
     async def auto_toggle(self, _data=None) -> None:
@@ -178,23 +219,29 @@ class SessionActions:
         logger.debug(f"模式切换: {'自动' if self._auto_mode else '手动'}")
 
     async def siap_siaga(self, _data=None) -> None:
-        """Pastikan sambungan dan sesi dengar siap, tanpa menghentikan apa pun.
+        """Pastikan SAMBUNGAN siap - tanpa membuka mikrofon.
 
         Dipanggil antarmuka setiap kali pengguna berpindah halaman (mis. keluar
-        dari Pengaturan). Sebelumnya, keluar dari Pengaturan kadang meninggalkan
-        sambungan dalam keadaan setengah siap sehingga SELA tidak menanggapi
-        sampai aplikasi dijalankan ulang. Handler ini bersifat idempoten:
-        memanggilnya berkali-kali aman dan tidak memutus percakapan yang sedang
-        berjalan.
+        dari Pengaturan) dan sekali saat halaman pertama dimuat. Sebelumnya,
+        keluar dari Pengaturan kadang meninggalkan sambungan dalam keadaan
+        setengah siap sehingga SELA tidak menanggapi sampai aplikasi dijalankan
+        ulang; handler ini menambalnya.
+
+        Sejak v1.0.15 mikrofon TIDAK dibuka di sini. Dulu ``siap_siaga``
+        memanggil ``_ensure_listen_session()``, sehingga sekadar membuka atau
+        menyegarkan halaman sudah menyalakan rekaman - pengguna melihat tombol
+        mikrofon "merekam" tanpa pernah menekannya. Membuka mikrofon sekarang
+        hanya terjadi lewat ``manual_toggle`` (klik tombol mikrofon) atau saat
+        pengguna mengirim teks.
         """
         try:
             if self._ctx.is_speaking():
                 # Sedang menjawab; jangan diganggu.
                 return
-            await self._cmd.connect_protocol()
-            if not self._ctx.is_listening():
-                await self._ensure_listen_session()
-            logger.debug("Siap siaga: sambungan dan sesi dengar dipastikan aktif")
+            # keep_idle: sambungan pulih, tetapi mikrofon tetap tertutup sampai
+            # pengguna benar-benar memintanya.
+            await self._cmd.connect_protocol(keep_idle=True)
+            logger.debug("Siap siaga: sambungan dipastikan aktif (mikrofon tetap tertutup)")
         except Exception as e:
             logger.warning(f"Siap siaga gagal: {e}")
 
