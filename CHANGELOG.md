@@ -34,6 +34,9 @@ untuk SELA - tidak lagi menyebut servo atau aturan robot.**
   berlaku untuk SELA: sumber jawaban, transkrip suara, serta bahasa dan format.
   Aturan yang tersisa diperkuat supaya cukup berdiri sendiri - penolakan di luar
   topik, larangan mengarang, dan format jawaban dijelaskan lebih tegas.
+- Ejaan nama kampus pada naskah diperbaiki menjadi **Universitas Catur Insan
+  Cendekia** (sebelumnya tertulis "Cerdas"). Nama ini diucapkan AI saat menyapa,
+  jadi ejaan yang salah langsung terdengar pengguna.
 
 ### Perbaikan
 
