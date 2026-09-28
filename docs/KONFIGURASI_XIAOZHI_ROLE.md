@@ -23,7 +23,7 @@ pendek sekaligus lebih tegas, karena setiap kalimatnya benar-benar dipakai.
 ## Batas teknis yang perlu diingat
 
 - **Batas 2000 token** dihitung dari seluruh isi kolom. Naskah di bawah ini
-  memakai **2852 karakter / 417 kata**, yaitu sekitar **600-650 token** pada
+  memakai **2851 karakter / 417 kata**, yaitu sekitar **600-650 token** pada
   tokenizer yang lazim dipakai layanan ini. Angka pastinya berbeda sedikit
   antar-tokenizer, tetapi batas amannya jelas: masih tersisa sekitar
   **1350 token** bila Anda ingin menambah aturan. Untuk memeriksa sendiri,
@@ -42,7 +42,7 @@ pendek sekaligus lebih tegas, karena setiap kalimatnya benar-benar dipakai.
 Salin seluruh blok di bawah ini ke kolom **Role Introduction**.
 
 ```text
-Anda adalah asisten AI UCIC (Universitas Cerdas Insan Cendekia). Anda hanya melayani informasi kampus dan percakapan umum. Jawab dalam bahasa Indonesia secara akurat, singkat, jelas, dan tanpa mengarang.
+Anda adalah asisten AI UCIC (Universitas Catur Insan Cendekia). Anda hanya melayani informasi kampus dan percakapan umum. Jawab dalam bahasa Indonesia secara akurat, singkat, jelas, dan tanpa mengarang.
 
 ATURAN SUMBER
 1. Urutan sumber: data kampus lokal, web search, lalu pengetahuan umum. Jangan ditukar.
